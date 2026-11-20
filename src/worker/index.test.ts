@@ -23,14 +23,14 @@ describe("Worker /api/health", () => {
     });
   });
 
-  it("returns 404 JSON for unknown /api/* paths", async () => {
+  it("fails closed with 401 for unauthenticated /api/* paths", async () => {
     const response = await handleRequest(
       new Request("https://multi-modal-rag.example.com/api/unknown", { method: "GET" }),
       TEST_ENV,
     );
 
-    expect(response.status).toBe(404);
+    expect(response.status).toBe(401);
     expect(response.headers.get("Cache-Control")).toBe("no-store");
-    expect(await response.json()).toEqual({ error: "not_found" });
+    expect(await response.json()).toEqual({ error: "unauthorized" });
   });
 });
