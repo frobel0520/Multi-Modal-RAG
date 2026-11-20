@@ -1,0 +1,29 @@
+{
+  "name": "multi-modal-rag",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev:web": "vite",
+    "dev:worker": "wrangler dev",
+    "build": "vite build",
+    "typecheck": "tsc --noEmit -p tsconfig.worker.json && tsc --noEmit -p tsconfig.web.json",
+    "test": "vitest run",
+    "check:progress": "node scripts/check-progress.mjs",
+    "ci": "npm run check:progress && npm run typecheck && npm test && npm run build"
+  },
+  "dependencies": {
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20250408.0",
+    "@types/node": "^22.14.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "@vitejs/plugin-react": "^4.3.4",
+    "typescript": "^5.8.2",
+    "vite": "^6.2.0",
+    "vitest": "^5.1.1"
+  }
+}
