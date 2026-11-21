@@ -1,15 +1,17 @@
 name = "multi-modal-rag"
-main = "src/worker/index.ts"
 compatibility_date = "2026-11-20"
-
-[assets]
-directory = "./dist"
-binding = "ASSETS"
-not_found_handling = "single-page-application"
-run_worker_first = ["/api/*"]
+pages_build_output_dir = "dist"
 
 [vars]
 APP_VERSION = "0.1.0"
 DATASET_VERSION = "uninitialized"
 DAILY_GLOBAL_QUERY_LIMIT = "250"
 DAILY_PER_USER_QUERY_LIMIT = "100"
+
+# Bindings to configure in Cloudflare Pages Dashboard (Settings -> Functions) or uncomment with real IDs:
+# [ai]
+# binding = "AI"
+#
+# [[kv_namespaces]]
+# binding = "RATE_LIMIT_KV"
+# id = "<your-kv-namespace-id>"
