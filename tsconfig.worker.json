@@ -10,5 +10,5 @@
     "noEmit": true,
     "types": ["@cloudflare/workers-types", "vitest/globals"]
   },
-  "include": ["src/**/*.ts"]
+  "include": ["src/**/*.ts", "functions/**/*.ts"]
 }

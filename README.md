@@ -5,8 +5,8 @@
 ## 專案狀態
 
 - **階段**：SDLC 規劃中（`docs/01`～`docs/04` 草案完成，待核准後啟動實作）
-- **專案級別**：產品級（Cloudflare Worker 同源網頁＋API，MVP 採 Google OAuth Owner 白名單登入）
-- **正式部署**：尚未部署（目標網址：`https://multi-modal-rag.curio-lab.workers.dev`）
+- **專案級別**：產品級（Cloudflare Pages + Pages Functions 同源網頁＋API，MVP 採 Google OAuth Owner 白名單登入）
+- **正式部署**：尚未部署（目標網址：`https://multi-modal-rag.pages.dev`）
 - **最新進度**：見 [`progress.md`](progress.md)
 
 ## 核心能力（MVP 目標）

@@ -1,9 +1,10 @@
 # Progress
 
 ## 現況
-- **`main` 分支**：`adae1b7`（已完成 SDLC 規劃 PR #1、T01 骨架與 CI PR #12、T02 Supabase schema PR #13、T05 Google OAuth PR #14、T06 Hybrid 檢索與 Grounding 守門 PR #15、T07 `/api/query` 雙模態管線與 KV 限流 PR #16；離線測試 18/18 通過）
-- **正式部署**：尚未部署（目標網址：`https://multi-modal-rag.curio-lab.workers.dev`）
-- **Harbor 納管**：`DeploymentHandbook.md` 與 `progress.md` 已同步回填；待 Owner 於 Harbor 主控台 D1 新增專案記錄
+- **`main` 分支**：`860e238`（已完成 SDLC、T01、T02、T05、T06、T07、T08 前端 SPA；離線測試 21/21 通過）
+- **進行中分支**：`feature/t10-pages-deploy`（切換為 Cloudflare Pages + Pages Functions 與 `.github/workflows/deploy.yml`）
+- **正式部署**：尚未部署（目標網址：`https://multi-modal-rag.pages.dev`）
+- **Harbor 納管**：`DeploymentHandbook.md` 與 `progress.md` 已同步；待部署後更新為 `pages.dev` 並於 Harbor 主控台 D1 新增記錄
 
 ## 進行中與下一步
 1. **T08**（Issue #6）：實作同源前端 SPA（Google 登入頁、文字＋拖拉／貼上截圖提問、原頁證據放大檢視器與 CSP `_headers`）。
