@@ -1,22 +1,21 @@
 # Progress
 
 ## 現況
-- **`main` 分支**：已完成初始規範與 SDLC 規劃文件（PR #1 已合併）
-- **進行中分支**：`feature/t01-project-scaffold`（T01：專案骨架與 CI，對應 Issue #2）
+- **`main` 分支**：`adae1b7`（已完成 SDLC 規劃 PR #1、T01 骨架與 CI PR #12、T02 Supabase schema PR #13、T05 Google OAuth PR #14、T06 Hybrid 檢索與 Grounding 守門 PR #15、T07 `/api/query` 雙模態管線與 KV 限流 PR #16；離線測試 18/18 通過）
 - **正式部署**：尚未部署（目標網址：`https://multi-modal-rag.curio-lab.workers.dev`）
-- **Harbor 納管**：`DeploymentHandbook.md` 登記 PR #133 已開啟（待合併與 Harbor D1 新增記錄）
+- **Harbor 納管**：`DeploymentHandbook.md` 與 `progress.md` 已同步回填；待 Owner 於 Harbor 主控台 D1 新增專案記錄
 
 ## 進行中與下一步
-1. 完成 T01（Worker + React/Vite 專案骨架、`GET /api/health`、`progress.md` 行數檢查、CI）並開 PR。
-2. T01 合併後，平行展開 **T02**（Supabase schema migration，Issue #4）與 **T05**（Google OAuth + `__Host-` session cookie，Issue #11）。
+1. **T08**（Issue #6）：實作同源前端 SPA（Google 登入頁、文字＋拖拉／貼上截圖提問、原頁證據放大檢視器與 CSP `_headers`）。
+2. **T03 / T04**（Issue #7 / #9）：建立 3 家公開 ESG 報告來源清單與 `colab-bridge` 離線索引腳本，於 Colab GPU 執行建索引。
+3. **T09 / T10**（Issue #8 / #10）：離線 30–40 題 Eval Set 評測、正式部署至 Cloudflare Worker、資安與 p50/p95 效能驗收。
 
 ## 擁有者事前準備（部署與真實整合前必要操作）
-- [ ] 建立 Supabase 免費專案（啟用 `pgvector` 與公開唯讀 Storage bucket）
+- [ ] 建立 Supabase 免費專案（啟用 `pgvector`、套用 `migrations/0001_init.sql`、建立公開唯讀 `esg-pages` Storage bucket）
 - [ ] 建立 Google Cloud OAuth 2.0 Web Client（授權重新導向 URI 設為本機與正式 Worker 網址）
 - [ ] 申請 Google AI Studio Gemini API Key（確認未啟用計費／未綁卡）
 - [ ] 設定 GitHub Actions Secrets（`CLOUDFLARE_API_TOKEN`、`CLOUDFLARE_ACCOUNT_ID`）與 Worker Secrets（`wrangler secret put`）
 
 ## 已知限制與待辦
-- 免費額度上限需於 T02／T05 開工前向 Cloudflare、Supabase、Google AI Studio 官方文件二次核對。
+- 目前 18 項測試皆為離線 fake/fixture 測試；真實 Supabase、Google OAuth、Workers AI 與 Gemini API 整合皆為「待驗收」。
 - MVP 僅支援單一 Owner 白名單登入與預設精選企業 ESG 報告庫，不開放使用者持久化上傳 PDF。
-- 離線建索引（T04）需由擁有者透過 `frobel0520/colab-bridge` 在 Google Colab GPU 執行。
