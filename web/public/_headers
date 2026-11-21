@@ -1,0 +1,12 @@
+/*
+  Content-Security-Policy: default-src 'self'; script-src 'self'; connect-src 'self'; img-src 'self' data: blob: https://*.supabase.co; style-src 'self'; font-src 'self' data:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin
+  X-Frame-Options: DENY
+  Permissions-Policy: camera=(), microphone=(), geolocation=()
+
+/
+  Cache-Control: no-cache
+
+/index.html
+  Cache-Control: no-cache
