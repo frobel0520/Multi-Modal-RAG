@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { signPayload, SESSION_COOKIE } from "../../src/auth/session-cookie";
 import { VlmRateLimitError, type Embedder, type VlmClient } from "../../src/llm/gemini-client";
 import { KvDailyRateLimiter, type KvStoreLike } from "../../src/query/rate-limiter";
-import { validateUploadImageBytes } from "../../src/query/image-validation";
+import { MAX_UPLOAD_IMAGE_BYTES, validateUploadImageBytes } from "../../src/query/image-validation";
 import type { RetrievalStore } from "../../src/retrieval/supabase-client";
 import { EMBEDDING_DIMENSION, type MatchedReportPageDTO } from "../../src/schema/contracts";
 import { handleRequest, type Env, type WorkerDeps } from "../../src/worker/index";
@@ -92,6 +92,33 @@ describe("T07 /api/query dual-modal pipeline, image validation, and KV rate limi
     expect(() => validateUploadImageBytes(new TextEncoder().encode("not an image payload"))).toThrow(
       /僅支援 PNG、JPEG 或 WebP/,
     );
+  });
+
+  it.each([
+    { label: "a fake PNG", size: 12, expectedStatus: 400 },
+    { label: "a PNG over the image limit", size: MAX_UPLOAD_IMAGE_BYTES + 1, expectedStatus: 413 },
+  ])("rejects $label before calling retrieval or models", async ({ size, expectedStatus }) => {
+    const cookie = await createOwnerCookieHeader();
+    const bytes = new Uint8Array(size);
+    if (expectedStatus === 413) bytes.set(VALID_PNG_BYTES);
+    const form = new FormData();
+    form.set("question", "合成驗收題");
+    form.set("image", new File([bytes], "chart.png", { type: "image/png" }));
+    const unexpectedService = async (): Promise<never> => {
+      throw new Error("Invalid uploads must stop before any external service call");
+    };
+    const response = await handleRequest(new Request(`${BASE_ORIGIN}/api/query`, {
+      method: "POST",
+      headers: { Origin: BASE_ORIGIN, Cookie: cookie },
+      body: form,
+    }), TEST_ENV, {
+      retrievalStore: { ...createFakeStore(), matchPages: unexpectedService },
+      rateLimiter: new KvDailyRateLimiter(createMemoryKv(), 10, 5),
+      embedder: { embedQuery: unexpectedService },
+      vlmClient: { extractImageQuery: unexpectedService, generateGroundedAnswer: unexpectedService },
+    });
+    expect(response.status).toBe(expectedStatus);
+    expect(response.headers.get("Cache-Control")).toBe("no-store");
   });
 
   it("handles authenticated image-upload query and returns grounded citations", async () => {
