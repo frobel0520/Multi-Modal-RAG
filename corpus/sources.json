@@ -1,0 +1,86 @@
+{
+  "dataset_version": "esg-2025-en-v1",
+  "reports": [
+    {
+      "id": "mediatek-esg-2025",
+      "company": "MediaTek",
+      "report_year": 2025,
+      "title": "MediaTek 2025 ESG Report",
+      "language": "en",
+      "source_url": "https://www.mediatek.com/hubfs/MediaTek%20Assets/Pdfs/ESG-Report-2025.pdf",
+      "publisher_page": "https://www.mediatek.com/sustainability",
+      "sha256": "56d01aa8d4ae722b50995795c74436b03c0310d686ffbf72c725800b017db43c",
+      "page_count": 107,
+      "page_ranges": [
+        {
+          "first_page": 20,
+          "last_page": 34,
+          "section_title": "Global presence and innovation"
+        },
+        {
+          "first_page": 35,
+          "last_page": 57,
+          "section_title": "Talent and workplace"
+        },
+        {
+          "first_page": 58,
+          "last_page": 73,
+          "section_title": "Governance and supply chain"
+        },
+        {
+          "first_page": 74,
+          "last_page": 83,
+          "section_title": "Environmental management"
+        }
+      ]
+    },
+    {
+      "id": "honhai-esg-2025",
+      "company": "Hon Hai",
+      "report_year": 2025,
+      "title": "2025 Hon Hai Foxconn Sustainability Report",
+      "language": "en",
+      "source_url": "https://www.honhai.com/s3/reports/CSR/sustainability/EN/00_2025%20Hon%20Hai%20Foxconn%20Sustainability%20Report%20%28Full%29-V2.pdf",
+      "publisher_page": "https://www.honhai.com/en-us/CSR/csr-report",
+      "sha256": "d661d2f339e9633b688852f90fd43fff219c1aae7eaec510cf432847333080a4",
+      "page_count": 228,
+      "page_ranges": [
+        {
+          "first_page": 29,
+          "last_page": 45,
+          "section_title": "Governance and risk management"
+        },
+        {
+          "first_page": 55,
+          "last_page": 70,
+          "section_title": "Sustainable supply chain"
+        },
+        {
+          "first_page": 95,
+          "last_page": 119,
+          "section_title": "Energy and environmental management"
+        },
+        {
+          "first_page": 131,
+          "last_page": 146,
+          "section_title": "Talent and workforce development"
+        }
+      ]
+    }
+  ],
+  "pending_sources": [
+    {
+      "id": "tsmc-esg-2025",
+      "company": "TSMC",
+      "report_year": 2025,
+      "title": "TSMC 2025 Sustainability Report",
+      "language": "en",
+      "source_url": "https://esg.tsmc.com/file/public/2025-TSMC-Sustainability-Report-e.pdf",
+      "publisher_page": "https://esg.tsmc.com/en-US/ESG-data-hub/latest-sustainability-information?tab=reports-documents",
+      "sha256": null,
+      "page_count": null,
+      "page_ranges": [],
+      "reason": "Official download identified; PDF returned HTTP 403 in this environment."
+    }
+  ]
+}
