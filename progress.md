@@ -10,6 +10,7 @@
 1. **T08**（Issue #6）：實作同源前端 SPA（Google 登入頁、文字＋拖拉／貼上截圖提問、原頁證據放大檢視器與 CSP `_headers`）。
 2. **T03 / T04**（Issue #7 / #9）：建立 3 家公開 ESG 報告來源清單與 `colab-bridge` 離線索引腳本，於 Colab GPU 執行建索引。
 3. **T09 / T10**（Issue #8 / #10）：離線 30–40 題 Eval Set 評測、正式部署至 Cloudflare Worker、資安與 p50/p95 效能驗收。
+   - T09 離線計分器與合成驗證已完成。正式題庫與品質驗收等待完整語料、權利確認及同版索引證據，見 [離線評測報告](docs/evidence/eval-report.md)。
 
 ## 擁有者事前準備（部署與真實整合前必要操作）
 - [ ] 建立 Supabase 免費專案（啟用 `pgvector`、套用 `migrations/0001_init.sql`、建立公開唯讀 `esg-pages` Storage bucket）

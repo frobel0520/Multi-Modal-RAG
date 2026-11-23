@@ -1,0 +1,53 @@
+{
+  "dataset_version": "eval-fixture-1",
+  "mode": "fixture",
+  "questions": [
+    {
+      "id": "Q1",
+      "kind": "single_page_chart",
+      "question": "示例甲的 2025 年用水量是多少？",
+      "answer_basis": "合成表格顯示 40 m³。",
+      "expected_pages": [
+        {
+          "report_id": "sample-a",
+          "page_number": 1
+        }
+      ]
+    },
+    {
+      "id": "Q2",
+      "kind": "cross_company",
+      "question": "示例甲和示例乙的用電量差多少？",
+      "answer_basis": "合成資料為 12 與 7 MWh，差 5 MWh。",
+      "expected_pages": [
+        {
+          "report_id": "sample-a",
+          "page_number": 2
+        },
+        {
+          "report_id": "sample-b",
+          "page_number": 2
+        }
+      ]
+    },
+    {
+      "id": "Q3",
+      "kind": "screenshot",
+      "question": "含綠色長條的合成截圖對應哪一頁？",
+      "answer_basis": "合成截圖索引鍵指向示例甲第 3 頁。",
+      "expected_pages": [
+        {
+          "report_id": "sample-a",
+          "page_number": 3
+        }
+      ]
+    },
+    {
+      "id": "Q4",
+      "kind": "refusal",
+      "question": "這家公司 2045 年每個廠的用水量是多少？",
+      "answer_basis": "合成來源沒有 2045 年或逐廠資料。",
+      "expected_pages": []
+    }
+  ]
+}
