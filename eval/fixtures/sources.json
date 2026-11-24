@@ -1,0 +1,25 @@
+{
+  "dataset_version": "eval-fixture-1",
+  "reports": [
+    {
+      "id": "sample-a",
+      "page_count": 6,
+      "page_ranges": [
+        {
+          "first_page": 1,
+          "last_page": 6
+        }
+      ]
+    },
+    {
+      "id": "sample-b",
+      "page_count": 6,
+      "page_ranges": [
+        {
+          "first_page": 1,
+          "last_page": 6
+        }
+      ]
+    }
+  ]
+}

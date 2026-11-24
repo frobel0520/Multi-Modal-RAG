@@ -1,0 +1,112 @@
+{
+  "dataset_version": "eval-fixture-1",
+  "mode": "fixture",
+  "results": [
+    {
+      "id": "Q1",
+      "status": "grounded",
+      "retrieved": [
+        {
+          "report_id": "sample-a",
+          "page_number": 1
+        }
+      ],
+      "citations": [
+        {
+          "report_id": "sample-a",
+          "page_number": 1
+        }
+      ],
+      "citation_candidates": [
+        {
+          "report_id": "sample-a",
+          "page_number": 1
+        }
+      ]
+    },
+    {
+      "id": "Q2",
+      "status": "grounded",
+      "retrieved": [
+        {
+          "report_id": "sample-a",
+          "page_number": 2
+        },
+        {
+          "report_id": "sample-a",
+          "page_number": 1
+        },
+        {
+          "report_id": "sample-a",
+          "page_number": 3
+        },
+        {
+          "report_id": "sample-a",
+          "page_number": 4
+        },
+        {
+          "report_id": "sample-a",
+          "page_number": 5
+        },
+        {
+          "report_id": "sample-b",
+          "page_number": 2
+        }
+      ],
+      "citations": [
+        {
+          "report_id": "sample-a",
+          "page_number": 2
+        },
+        {
+          "report_id": "sample-b",
+          "page_number": 2
+        }
+      ],
+      "citation_candidates": [
+        {
+          "report_id": "sample-a",
+          "page_number": 2
+        },
+        {
+          "report_id": "sample-b",
+          "page_number": 2
+        }
+      ]
+    },
+    {
+      "id": "Q3",
+      "status": "grounded",
+      "retrieved": [
+        {
+          "report_id": "sample-a",
+          "page_number": 3
+        }
+      ],
+      "citations": [
+        {
+          "report_id": "sample-a",
+          "page_number": 6
+        }
+      ],
+      "citation_candidates": [
+        {
+          "report_id": "sample-a",
+          "page_number": 3
+        }
+      ]
+    },
+    {
+      "id": "Q4",
+      "status": "refused",
+      "retrieved": [
+        {
+          "report_id": "sample-a",
+          "page_number": 1
+        }
+      ],
+      "citations": [],
+      "citation_candidates": []
+    }
+  ]
+}
