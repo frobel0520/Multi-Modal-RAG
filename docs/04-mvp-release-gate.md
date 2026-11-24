@@ -2,7 +2,7 @@
 
 - **文件狀態**：提案（待擁有者核准）
 - **建立日期**：2026-11-20
-- **目前驗收結果**：`pending`（尚未進入實作與正式部署）
+- **目前驗收結果**：2026-11-23 已完成可離線覆核的預檢，正式 Gate 維持 `pending`。見 [逐項證據](evidence/mvp-release-gate.md)。
 
 ---
 
@@ -19,14 +19,14 @@
 
 ## 2. 資安基準檢查（依 `DeploymentHandbook.md` 第 2 章）
 
-- [ ] 獨立 origin：`https://multi-modal-rag.curio-lab.workers.dev`（同源提供網頁與 `/api/*`，不開 CORS）
+- [ ] 正式獨立 origin：`https://multi-modal-rag.pages.dev`（Pages 提供 `dist` 靜態 SPA，`functions/api/[[path]].ts` 在同一 origin 轉接 `/api/*`，不開 CORS）。正式部署、同源行為與回應標頭待讀回。
 - [ ] Session cookie 名稱以 `__Host-` 開頭，屬性含 `HttpOnly; Secure; SameSite=Strict; Path=/`
 - [ ] `localStorage`／`sessionStorage` 不存任何 token 或 session；API 不回傳 token
 - [ ] 跨來源 `POST` 回傳 `403`；未登入存取 `/api/query`、`/api/reports` 回傳 `401`
 - [ ] 非白名單 Google 帳號登入回傳 `403`
 - [ ] 上傳非圖片／偽造副檔名或超過 2 MB 的檔案被伺服器端拒絕（`400`／`413`），且合法上傳圖不落地儲存
-- [ ] 回應標頭含 CSP、`X-Content-Type-Options: nosniff`、`frame-ancestors 'none'`；HTML `no-cache`、API `no-store`
-- [ ] 部署 workflow 僅由 `main` push 或 owner `workflow_dispatch` 觸發，含 `environment` 與 `GITHUB_ACTOR == GITHUB_REPOSITORY_OWNER` 檢查；wrangler 輸出不洩漏 vars
+- [ ] 正式回應標頭含 CSP、`X-Content-Type-Options: nosniff`、`frame-ancestors 'none'`；HTML `no-cache`、API `no-store`。Pages 的 `_headers` 只套用於靜態回應，Functions 回應須由程式設定。[Cloudflare Pages 標頭](https://developers.cloudflare.com/pages/configuration/headers/)
+- [ ] 部署 workflow 僅由 `main` push 或 owner `workflow_dispatch` 觸發，使用 `production` environment，部署 job 限定 main 與 repo owner。既有執行止於必要憑證檢查，實際部署輸出仍待驗。
 
 ---
 
@@ -58,6 +58,6 @@
 - [ ] 確認所有使用服務皆在免費方案內且未綁定信用卡付費功能
 - [ ] 記錄實際資源佔用：Colab CU 消耗、Supabase DB MB、Storage MB、Worker 每日限流設定
 - [ ] **Rollback 方式**：
-  - Worker 版本異常：執行 `wrangler rollback` 立即退回前一版
-  - 程式碼問題：revert 對應 PR，由 `main` CI 重新部署
+  - Pages 版本異常：由 Owner 在 Cloudflare Pages 專案的 Deployments 選擇仍保留、成功的前一筆 production deployment，執行 Rollback to this deployment。Preview 不能作為回滾目標；若從未成功發布，沒有可回滾版本。[Cloudflare Pages 回滾](https://developers.cloudflare.com/pages/configuration/rollbacks/)
+  - 程式碼問題：由 Owner 核准 revert PR，再經 main 的既有部署流程發布。
   - 索引資料問題：保留前版 `dataset_version` 標記，異常時切回前版查詢過濾條件
