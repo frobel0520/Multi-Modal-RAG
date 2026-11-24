@@ -8,21 +8,10 @@ import {
   type OAuthCodeExchanger,
 } from "../auth/google-oauth";
 import { isSameOriginWrite } from "../auth/session-cookie";
-import {
-  GeminiVlmClient,
-  WorkersAiBgeM3Embedder,
-  type Embedder,
-  type VlmClient,
-} from "../llm/gemini-client";
-import {
-  ImageValidationError,
-  validateUploadImageBytes,
-  type ValidatedUploadImage,
-} from "../query/image-validation";
-import {
-  executeMultiModalQuery,
-  RateLimitExceededError,
-} from "../query/query-pipeline";
+import { ImageValidationError } from "../query/image-validation";
+import { answerRailQuery } from "../rail/rail-query";
+import { RAIL_DATASET_VERSION, railChartUrl, railSeries, railSeriesTitle, renderRailChart } from "../rail/rail-corpus";
+import type { ScreenshotEvidence } from "../rail/screenshot-evidence";
 import {
   KvDailyRateLimiter,
   type KvStoreLike,
@@ -56,8 +45,6 @@ export interface WorkerDeps {
   nowSeconds?: () => number;
   retrievalStore?: RetrievalStore;
   rateLimiter?: RateLimiter;
-  embedder?: Embedder;
-  vlmClient?: VlmClient;
 }
 
 const API_SECURITY_HEADERS: Record<string, string> = {
@@ -108,55 +95,57 @@ function resolveRateLimiter(env: Env, deps: WorkerDeps): RateLimiter | null {
   return new KvDailyRateLimiter(env.RATE_LIMIT_KV, globalLimit, perUserLimit);
 }
 
-async function parseQueryRequestBody(request: Request): Promise<{
-  question: string;
-  uploadedImage: ValidatedUploadImage | null;
-  filterCompany: string | null;
-  filterYear: number | null;
-}> {
-  const contentType = request.headers.get("Content-Type") ?? "";
+function isScreenshotEvidence(input: unknown): input is ScreenshotEvidence {
+  if (!input || typeof input !== "object") return false;
+  const evidence = input as Partial<ScreenshotEvidence>;
+  return Array.isArray(evidence.codes) && evidence.codes.length <= railSeries.length
+    && evidence.codes.every((code) => typeof code === "string" && /^[A-Z]{3,5}$/.test(code))
+    && Array.isArray(evidence.rows) && evidence.rows.length <= 30
+    && evidence.rows.every((row) => row && Number.isInteger(row.year)
+      && Number.isSafeInteger(row.value) && row.value >= 0);
+}
 
-  if (contentType.includes("multipart/form-data")) {
+async function parseQueryRequestBody(request: Request): Promise<Parameters<typeof answerRailQuery>[0]> {
+  let body: Record<string, unknown>;
+  if (request.headers.get("Content-Type")?.includes("multipart/form-data")) {
     const form = await request.formData();
-    const questionRaw = form.get("question");
-    const companyRaw = form.get("company");
-    const yearRaw = form.get("year");
-    const imageEntry = form.get("image");
-
-    const question = typeof questionRaw === "string" ? questionRaw : "";
-    const filterCompany =
-      typeof companyRaw === "string" && companyRaw.trim().length > 0 ? companyRaw.trim() : null;
-    const filterYear =
-      typeof yearRaw === "string" && /^\d{4}$/.test(yearRaw.trim())
-        ? Number.parseInt(yearRaw.trim(), 10)
-        : null;
-
-    let uploadedImage: ValidatedUploadImage | null = null;
-    if (imageEntry && typeof imageEntry === "object" && "arrayBuffer" in imageEntry) {
-      const bytes = new Uint8Array(await imageEntry.arrayBuffer());
-      uploadedImage = validateUploadImageBytes(bytes);
+    if (form.has("image")) {
+      throw new ImageValidationError("請在網頁附上截圖，瀏覽器會先在本機辨識。");
     }
-
-    return { question, uploadedImage, filterCompany, filterYear };
+    body = Object.fromEntries(form);
+    if (typeof body.year === "string" && /^\d{4}$/.test(body.year)) body.year = Number(body.year);
+  } else {
+    const parsed: unknown = await request.json().catch(() => null);
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+      throw new ImageValidationError("請求格式無效");
+    }
+    body = parsed as Record<string, unknown>;
   }
 
-  const body = (await request.json().catch(() => null)) as {
-    question?: unknown;
-    company?: unknown;
-    year?: unknown;
-  } | null;
+  const question = typeof body.question === "string" ? body.question.trim() : "";
+  if (question.length > 500) throw new ImageValidationError("問題最多 500 字。");
+  const series = body.series ?? body.company;
+  if (series != null && typeof series !== "string") throw new ImageValidationError("運具格式無效。");
+  if (body.year != null && !Number.isInteger(body.year)) throw new ImageValidationError("年度格式無效。");
 
-  if (!body || typeof body !== "object") {
-    throw new ImageValidationError("請求格式無效，請提供 JSON 或 multipart/form-data", 400);
+  let screenshot: unknown = body.screenshot_evidence ?? null;
+  if (typeof screenshot === "string") {
+    if (screenshot.length > 2000) throw new ImageValidationError("截圖辨識資料過長。");
+    try {
+      screenshot = JSON.parse(screenshot);
+    } catch {
+      throw new ImageValidationError("截圖辨識資料格式無效。");
+    }
   }
-
-  const question = typeof body.question === "string" ? body.question : "";
-  const filterCompany =
-    typeof body.company === "string" && body.company.trim().length > 0 ? body.company.trim() : null;
-  const filterYear =
-    typeof body.year === "number" && Number.isInteger(body.year) ? body.year : null;
-
-  return { question, uploadedImage: null, filterCompany, filterYear };
+  if (screenshot !== null && !isScreenshotEvidence(screenshot)) {
+    throw new ImageValidationError("截圖辨識資料格式無效。");
+  }
+  return {
+    question,
+    seriesFilter: typeof series === "string" ? series.trim() || null : null,
+    yearFilter: typeof body.year === "number" ? body.year : null,
+    screenshot,
+  };
 }
 
 export async function handleRequest(
@@ -171,7 +160,7 @@ export async function handleRequest(
     return jsonResponse({
       status: "ok",
       version: env.APP_VERSION || "0.1.0",
-      dataset_version: env.DATASET_VERSION || "uninitialized",
+      dataset_version: RAIL_DATASET_VERSION,
     });
   }
 
@@ -224,48 +213,51 @@ export async function handleRequest(
       });
     }
 
+    if (url.pathname === "/api/rail" && request.method === "GET") {
+      return jsonResponse({
+        dataset_version: RAIL_DATASET_VERSION,
+        series: railSeries.map((series) => ({
+          id: series.id,
+          title: railSeriesTitle(series),
+          image_url: railChartUrl(series),
+        })),
+      });
+    }
+
+    if (url.pathname.startsWith("/api/rail/charts/") && request.method === "GET") {
+      const series = railSeries.find((item) => railChartUrl(item) === url.pathname);
+      if (!series) return jsonResponse({ error: "not_found" }, 404);
+      return new Response(renderRailChart(series), {
+        headers: {
+          ...API_SECURITY_HEADERS,
+          "Content-Type": "image/svg+xml; charset=utf-8",
+          "Content-Security-Policy": "default-src 'none'; sandbox",
+        },
+      });
+    }
+
     if (url.pathname === "/api/query" && request.method === "POST") {
-      const store = resolveRetrievalStore(env, deps);
-      const rateLimiter = resolveRateLimiter(env, deps);
-      const embedder = deps.embedder ?? (env.AI ? new WorkersAiBgeM3Embedder(env.AI) : null);
-      const vlmClient =
-        deps.vlmClient ??
-        (env.GEMINI_API_KEY
-          ? new GeminiVlmClient(env.GEMINI_API_KEY, env.GEMINI_MODEL || "gemini-2.5-flash")
-          : null);
-
-      if (!store || !rateLimiter || !embedder || !vlmClient) {
-        return jsonResponse({ error: "query_pipeline_not_configured" }, 503);
-      }
-
+      const startedAt = performance.now();
       try {
         const parsed = await parseQueryRequestBody(request);
-        if (parsed.question.trim().length === 0 && !parsed.uploadedImage) {
+        if (!parsed.question && !parsed.screenshot && !parsed.seriesFilter && parsed.yearFilter === null) {
           return jsonResponse({ error: "empty_query" }, 400);
         }
-
-        const result = await executeMultiModalQuery(
-          {
-            userKey: session.sub,
-            question: parsed.question,
-            uploadedImage: parsed.uploadedImage,
-            filterCompany: parsed.filterCompany,
-            filterYear: parsed.filterYear,
-          },
-          {
-            rateLimiter,
-            embedder,
-            retrievalStore: store,
-            vlmClient,
-          },
-        );
-        return jsonResponse(result, 200);
+        const rateLimiter = resolveRateLimiter(env, deps);
+        if (rateLimiter) {
+          const limit = await rateLimiter.consume(session.sub);
+          if (!limit.allowed) return jsonResponse({ error: limit.reason ?? "今日查詢額度已達上限" }, 429);
+        }
+        const result = answerRailQuery(parsed);
+        return jsonResponse({
+          request_id: crypto.randomUUID(),
+          ...result,
+          extracted_image_query: null,
+          latency_ms: Math.round(performance.now() - startedAt),
+        });
       } catch (err) {
         if (err instanceof ImageValidationError) {
           return jsonResponse({ error: err.message }, err.statusCode);
-        }
-        if (err instanceof RateLimitExceededError) {
-          return jsonResponse({ error: err.message }, 429);
         }
         return jsonResponse({ error: "query_execution_failed" }, 502);
       }

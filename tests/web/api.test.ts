@@ -20,7 +20,7 @@ describe("T08 Frontend same-origin API client", () => {
     await expect(logout(fakeFetch)).rejects.toThrow(/登出失敗/);
   });
 
-  it("sends multipart FormData with question, filters, and imageFile on submitQuery", async () => {
+  it("sends multipart FormData with filters and recognized data only on submitQuery", async () => {
     let capturedBody: BodyInit | null | undefined;
     let capturedCredentials: RequestCredentials | undefined;
 
@@ -33,7 +33,7 @@ describe("T08 Frontend same-origin API client", () => {
           status: "grounded",
           answer: "測試回答",
           refusal_reason: null,
-          extracted_image_query: "TSMC 再生能源",
+          extracted_image_query: null,
           citations: [],
           latency_ms: 120,
         }),
@@ -41,16 +41,14 @@ describe("T08 Frontend same-origin API client", () => {
       );
     };
 
-    const file = new File([new Uint8Array([0x89, 0x50, 0x4e, 0x47])], "chart.png", {
-      type: "image/png",
-    });
+    const screenshot = { codes: ["METRO"], rows: [{ year: 2024, value: 741824511 }] };
 
     const result = await submitQuery(
       {
-        question: "再生能源比例？",
-        company: "TSMC",
+        question: "這張圖 2024 年的人次？",
+        series: "metro-taipei",
         year: "2024",
-        imageFile: file,
+        screenshot,
       },
       fakeFetch,
     );
@@ -58,10 +56,11 @@ describe("T08 Frontend same-origin API client", () => {
     expect(capturedCredentials).toBe("same-origin");
     expect(capturedBody).toBeInstanceOf(FormData);
     const form = capturedBody as FormData;
-    expect(form.get("question")).toBe("再生能源比例？");
-    expect(form.get("company")).toBe("TSMC");
+    expect(form.get("question")).toBe("這張圖 2024 年的人次？");
+    expect(form.get("series")).toBe("metro-taipei");
     expect(form.get("year")).toBe("2024");
-    expect(form.get("image")).toBeTruthy();
+    expect(form.get("image")).toBeNull();
+    expect(form.get("screenshot_evidence")).toBe(JSON.stringify(screenshot));
     expect(result.status).toBe("grounded");
   });
 });

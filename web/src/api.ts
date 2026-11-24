@@ -1,25 +1,14 @@
-export type QueryStatus = "grounded" | "refused" | "degraded_retrieval_only";
+import type { RailCitation } from "../../src/rail/rail-query";
+import type { ScreenshotEvidence } from "../../src/rail/screenshot-evidence";
 
-export interface ReportSummary {
+export type QueryStatus = "grounded" | "refused";
+
+export type CitationItem = RailCitation;
+
+export interface RailChart {
   readonly id: string;
-  readonly company: string;
-  readonly report_year: number;
   readonly title: string;
-  readonly source_url: string;
-  readonly dataset_version: string;
-  readonly total_indexed_pages: number;
-}
-
-export interface CitationItem {
-  readonly report_id: string;
-  readonly company: string;
-  readonly report_year: number;
-  readonly page_number: number;
-  readonly section_title: string | null;
   readonly image_url: string;
-  readonly source_url: string;
-  readonly relevance_score: number;
-  readonly visual_excerpt: string;
 }
 
 export interface QueryResult {
@@ -32,15 +21,15 @@ export interface QueryResult {
   readonly latency_ms: number;
 }
 
-export interface ReportsListResult {
+export interface RailCatalog {
   readonly dataset_version: string;
-  readonly reports: ReportSummary[];
+  readonly series: RailChart[];
 }
 
 export interface SubmitQueryParams {
   readonly question: string;
-  readonly imageFile?: File | null;
-  readonly company?: string;
+  readonly screenshot?: ScreenshotEvidence;
+  readonly series?: string;
   readonly year?: string;
 }
 
@@ -77,15 +66,15 @@ export async function logout(fetchImpl: typeof fetch = fetch): Promise<void> {
   }
 }
 
-export async function fetchReports(fetchImpl: typeof fetch = fetch): Promise<ReportsListResult> {
-  const res = await fetchImpl("/api/reports", {
+export async function fetchRailCatalog(fetchImpl: typeof fetch = fetch): Promise<RailCatalog> {
+  const res = await fetchImpl("/api/rail", {
     method: "GET",
     credentials: "same-origin",
   });
   if (!res.ok) {
-    throw new ApiError("載入報告清單失敗", res.status);
+    throw new ApiError("載入鐵道資料失敗", res.status);
   }
-  return (await res.json()) as ReportsListResult;
+  return (await res.json()) as RailCatalog;
 }
 
 export async function submitQuery(
@@ -94,14 +83,14 @@ export async function submitQuery(
 ): Promise<QueryResult> {
   const form = new FormData();
   form.set("question", params.question.trim());
-  if (params.company && params.company.trim().length > 0) {
-    form.set("company", params.company.trim());
+  if (params.series && params.series.trim().length > 0) {
+    form.set("series", params.series.trim());
   }
   if (params.year && params.year.trim().length > 0) {
     form.set("year", params.year.trim());
   }
-  if (params.imageFile) {
-    form.set("image", params.imageFile, params.imageFile.name || "chart.webp");
+  if (params.screenshot) {
+    form.set("screenshot_evidence", JSON.stringify(params.screenshot));
   }
 
   const res = await fetchImpl("/api/query", {
