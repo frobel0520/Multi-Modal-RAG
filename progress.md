@@ -7,14 +7,11 @@
 
 ## 進行中與下一步
 1. **T08**（Issue #6）：實作同源前端 SPA（Google 登入頁、文字＋拖拉／貼上截圖提問、原頁證據放大檢視器與 CSP `_headers`）。
-2. **T03 / T04**（Issue #7 / #9）：建立 3 家公開 ESG 報告來源清單與 `colab-bridge` 離線索引腳本，於 Colab GPU 執行建索引。
+2. **T03 / T04**（Issue #7 / #9）：建立 3 家公開 ESG 報告來源清單與 `colab-bridge` 離線索引腳本，於 Colab GPU 執行建索引。 2026-11-25 暫緩：Owner 取消 T03／T04 與 T09 評測任務。
 3. **T09 / T10**（Issue #8 / #10）：真實離線評測、Pages 正式部署、資安與 p50/p95 效能驗收待完成。T10 的 23 項本機測試與建置產物標頭檢查通過，見 [Pages 離線預檢](docs/evidence/mvp-release-gate.md)。
 
 ## 擁有者事前準備（部署與真實整合前必要操作）
-- [ ] 建立 Supabase 免費專案（啟用 `pgvector`、套用 `migrations/0001_init.sql`、建立公開唯讀 `esg-pages` Storage bucket）
-- [ ] 建立 Google Cloud OAuth 2.0 Web Client（授權重新導向 URI 設為本機與正式 Worker 網址）
-- [ ] 申請 Google AI Studio Gemini API Key（確認未啟用計費／未綁卡）
-- [ ] 設定 GitHub Actions Secrets（`CLOUDFLARE_API_TOKEN`、`CLOUDFLARE_ACCOUNT_ID`）與 Worker Secrets（`wrangler secret put`）
+- 雲端帳號與金鑰（Supabase、Google OAuth Client、Gemini API Key、GitHub／Worker Secrets）：2026-11-25 Owner 決定短期不做，任務已取消；需要時再重開。
 
 ## 已知限制與待辦
 - 目前 18 項測試皆為離線 fake/fixture 測試；真實 Supabase、Google OAuth、Workers AI 與 Gemini API 整合皆為「待驗收」。
