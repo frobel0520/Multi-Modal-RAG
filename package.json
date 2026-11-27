@@ -13,8 +13,11 @@
     "ci": "npm run check:progress && npm run typecheck && npm test && npm run build"
   },
   "dependencies": {
+    "@tesseract.js-data/eng": "1.0.0",
     "react": "^19.0.0",
-    "react-dom": "^19.0.0"
+    "react-dom": "^19.0.0",
+    "tesseract.js": "7.0.0",
+    "tesseract.js-core": "7.0.0"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20250408.0",

@@ -7,12 +7,11 @@ export async function compressImageForUpload(file: File): Promise<File> {
     throw new Error("僅支援 PNG、JPEG 或 WebP 格式圖片");
   }
 
-  if (file.size <= TARGET_MAX_BYTES) {
-    return file;
-  }
-
   const bitmap = await createImageBitmap(file);
   try {
+    if (file.size <= TARGET_MAX_BYTES && Math.max(bitmap.width, bitmap.height) <= MAX_LONG_EDGE_PX) {
+      return file;
+    }
     const scale = Math.min(1, MAX_LONG_EDGE_PX / Math.max(bitmap.width, bitmap.height));
     const width = Math.max(1, Math.round(bitmap.width * scale));
     const height = Math.max(1, Math.round(bitmap.height * scale));

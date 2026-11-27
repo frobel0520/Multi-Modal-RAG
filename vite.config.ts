@@ -7,6 +7,14 @@ export default defineConfig({
   build: {
     outDir: "../dist",
     emptyOutDir: true,
+    rollupOptions: {
+      output: {
+        // Tesseract loads this language file by its fixed basename.
+        assetFileNames: (asset) => asset.names.includes("eng.traineddata.gz")
+          ? "ocr/eng.traineddata.gz"
+          : "assets/[name]-[hash][extname]",
+      },
+    },
   },
   server: {
     proxy: {

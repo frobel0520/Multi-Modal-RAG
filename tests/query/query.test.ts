@@ -7,7 +7,8 @@ import {
   type VlmClient,
 } from "../../src/llm/gemini-client";
 import { KvDailyRateLimiter, type KvStoreLike } from "../../src/query/rate-limiter";
-import { MAX_UPLOAD_IMAGE_BYTES, validateUploadImageBytes } from "../../src/query/image-validation";
+import { executeMultiModalQuery, type QueryPipelineDeps } from "../../src/query/query-pipeline";
+import { validateUploadImageBytes } from "../../src/query/image-validation";
 import type { RetrievalStore } from "../../src/retrieval/supabase-client";
 import { EMBEDDING_DIMENSION, type MatchedReportPageDTO } from "../../src/schema/contracts";
 import {
@@ -102,7 +103,7 @@ async function createOwnerCookieHeader(): Promise<string> {
   return `${SESSION_COOKIE}=${token}`;
 }
 
-describe("T07 /api/query dual-modal pipeline, image validation, and KV rate limit", () => {
+describe("Existing retrieval pipeline, image validation, and rail API rate limit", () => {
   it("validates PNG magic bytes and rejects fake image payloads", () => {
     expect(validateUploadImageBytes(VALID_PNG_BYTES).mimeType).toBe("image/png");
     expect(() => validateUploadImageBytes(new TextEncoder().encode("not an image payload"))).toThrow(
@@ -137,35 +138,7 @@ describe("T07 /api/query dual-modal pipeline, image validation, and KV rate limi
     expect(results.filter((r) => !r.allowed)).toHaveLength(2);
   });
 
-  it.each([
-    { label: "a fake PNG", size: 12, expectedStatus: 400 },
-    { label: "a PNG over the image limit", size: MAX_UPLOAD_IMAGE_BYTES + 1, expectedStatus: 413 },
-  ])("rejects $label before calling retrieval or models", async ({ size, expectedStatus }) => {
-    const cookie = await createOwnerCookieHeader();
-    const bytes = new Uint8Array(size);
-    if (expectedStatus === 413) bytes.set(VALID_PNG_BYTES);
-    const form = new FormData();
-    form.set("question", "合成驗收題");
-    form.set("image", new File([bytes], "chart.png", { type: "image/png" }));
-    const unexpectedService = async (): Promise<never> => {
-      throw new Error("Invalid uploads must stop before any external service call");
-    };
-    const response = await handleRequest(new Request(`${BASE_ORIGIN}/api/query`, {
-      method: "POST",
-      headers: { Origin: BASE_ORIGIN, Cookie: cookie },
-      body: form,
-    }), TEST_ENV, {
-      retrievalStore: { ...createFakeStore(), matchPages: unexpectedService },
-      rateLimiter: new KvDailyRateLimiter(createMemoryKv(), 10, 5),
-      embedder: { embedQuery: unexpectedService },
-      vlmClient: { extractImageQuery: unexpectedService, generateGroundedAnswer: unexpectedService },
-    });
-    expect(response.status).toBe(expectedStatus);
-    expect(response.headers.get("Cache-Control")).toBe("no-store");
-  });
-
-  it("handles authenticated image-upload query and returns grounded citations", async () => {
-    const cookie = await createOwnerCookieHeader();
+  it("extracts image terms and returns grounded citations in the report pipeline", async () => {
     const fakeVlm: VlmClient = {
       async extractImageQuery() {
         return "TSMC 2024 再生能源比例";
@@ -180,41 +153,24 @@ describe("T07 /api/query dual-modal pipeline, image validation, and KV rate limi
       },
     };
 
-    const form = new FormData();
-    form.set("question", "這張圖的數據對應哪一頁？");
-    form.set("image", new File([VALID_PNG_BYTES], "chart.png", { type: "image/png" }));
-
-    const deps: WorkerDeps = {
+    const deps: QueryPipelineDeps = {
       retrievalStore: createFakeStore(),
       rateLimiter: new KvDailyRateLimiter(createMemoryKv(), 10, 5),
       embedder: FAKE_EMBEDDER,
       vlmClient: fakeVlm,
     };
-
-    const res = await handleRequest(
-      new Request(`${BASE_ORIGIN}/api/query`, {
-        method: "POST",
-        headers: { Origin: BASE_ORIGIN, Cookie: cookie },
-        body: form,
-      }),
-      TEST_ENV,
-      deps,
-    );
-
-    expect(res.status).toBe(200);
-    const json = (await res.json()) as {
-      status: string;
-      extracted_image_query: string | null;
-      citations: Array<{ page_number: number }>;
-    };
+    const json = await executeMultiModalQuery({
+      userKey: "owner",
+      question: "這張圖的數據對應哪一頁？",
+      uploadedImage: validateUploadImageBytes(VALID_PNG_BYTES),
+    }, deps);
     expect(json.status).toBe("grounded");
     expect(json.extracted_image_query).toBe("TSMC 2024 再生能源比例");
     expect(json.citations).toHaveLength(1);
     expect(json.citations[0]?.page_number).toBe(42);
   });
 
-  it("degrades gracefully to degraded_retrieval_only on Gemini 429 rate limit", async () => {
-    const cookie = await createOwnerCookieHeader();
+  it("degrades report retrieval on Gemini 429 rate limit", async () => {
     const rateLimitedVlm: VlmClient = {
       async extractImageQuery() {
         throw new VlmRateLimitError();
@@ -224,29 +180,17 @@ describe("T07 /api/query dual-modal pipeline, image validation, and KV rate limi
       },
     };
 
-    const deps: WorkerDeps = {
+    const deps: QueryPipelineDeps = {
       retrievalStore: createFakeStore(),
       rateLimiter: new KvDailyRateLimiter(createMemoryKv(), 10, 5),
       embedder: FAKE_EMBEDDER,
       vlmClient: rateLimitedVlm,
     };
-
-    const res = await handleRequest(
-      new Request(`${BASE_ORIGIN}/api/query`, {
-        method: "POST",
-        headers: {
-          Origin: BASE_ORIGIN,
-          Cookie: cookie,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ question: "TSMC 2024 再生能源比例？" }),
-      }),
-      TEST_ENV,
-      deps,
-    );
-
-    expect(res.status).toBe(200);
-    const json = (await res.json()) as { status: string; citations: unknown[] };
+    const json = await executeMultiModalQuery({
+      userKey: "owner",
+      question: "TSMC 2024 再生能源比例？",
+      uploadedImage: null,
+    }, deps);
     expect(json.status).toBe("degraded_retrieval_only");
     expect(json.citations).toHaveLength(1);
   });
@@ -254,24 +198,7 @@ describe("T07 /api/query dual-modal pipeline, image validation, and KV rate limi
   it("enforces KV daily rate limit and returns 429 when exceeded", async () => {
     const cookie = await createOwnerCookieHeader();
     const kv = createMemoryKv();
-    const deps: WorkerDeps = {
-      retrievalStore: createFakeStore(),
-      rateLimiter: new KvDailyRateLimiter(kv, 1, 1),
-      embedder: FAKE_EMBEDDER,
-      vlmClient: {
-        async extractImageQuery() {
-          return "query";
-        },
-        async generateGroundedAnswer() {
-          return {
-            refused: false,
-            refusalReason: null,
-            answer: "ok",
-            citedRefs: [{ report_id: "tsmc-esg-2024", page_number: 42 }],
-          };
-        },
-      },
-    };
+    const deps: WorkerDeps = { rateLimiter: new KvDailyRateLimiter(kv, 1, 1) };
 
     const makeReq = () =>
       new Request(`${BASE_ORIGIN}/api/query`, {
@@ -281,30 +208,45 @@ describe("T07 /api/query dual-modal pipeline, image validation, and KV rate limi
           Cookie: cookie,
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ question: "TSMC 2024 再生能源比例？" }),
+        body: JSON.stringify({ question: "2024 年臺鐵人次？" }),
       });
 
     const first = await handleRequest(makeReq(), TEST_ENV, deps);
     expect(first.status).toBe(200);
+    expect(await first.json()).toMatchObject({ status: "grounded" });
 
     const second = await handleRequest(makeReq(), TEST_ENV, deps);
     expect(second.status).toBe(429);
   });
 
-  it("enforces Content-Length, question/company length bounds, and runs rate limit before embedder/VLM", async () => {
+  it("reuses the configured KV limiter across requests sharing a binding", async () => {
     const cookie = await createOwnerCookieHeader();
-    const unexpectedCall = async (): Promise<never> => {
-      throw new Error("Downstream AI services must not be called");
+    const env: Env = {
+      ...TEST_ENV,
+      DAILY_GLOBAL_QUERY_LIMIT: "1",
+      DAILY_PER_USER_QUERY_LIMIT: "1",
+      RATE_LIMIT_KV: { async get() { return null; }, async put() {} },
     };
+    const query = () => handleRequest(new Request(`${BASE_ORIGIN}/api/query`, {
+      method: "POST",
+      headers: { Origin: BASE_ORIGIN, Cookie: cookie, "Content-Type": "application/json" },
+      body: JSON.stringify({ question: "2024 年臺鐵人次？" }),
+    }), env);
+
+    const results = await Promise.all([query(), query()]);
+    expect(results.map(({ status }) => status).sort()).toEqual([200, 429]);
+  });
+
+  it("enforces Content-Length and query field bounds before consuming quota", async () => {
+    const cookie = await createOwnerCookieHeader();
+    let quotaCalls = 0;
     const guardedDeps: WorkerDeps = {
-      retrievalStore: { ...createFakeStore(), matchPages: unexpectedCall },
       rateLimiter: {
         async consume() {
-          return { allowed: false, reason: "rate_limited", globalUsed: 1, userUsed: 1 };
+          quotaCalls++;
+          return { allowed: false, reason: "rate_limited", remainingGlobal: 0, remainingUser: 0 };
         },
       },
-      embedder: { embedQuery: unexpectedCall },
-      vlmClient: { extractImageQuery: unexpectedCall, generateGroundedAnswer: unexpectedCall },
     };
 
     const tooLarge = await handleRequest(
@@ -344,6 +286,7 @@ describe("T07 /api/query dual-modal pipeline, image validation, and KV rate limi
       guardedDeps,
     );
     expect(longCompany.status).toBe(400);
+    expect(quotaCalls).toBe(0);
 
     const rateLimited = await handleRequest(
       new Request(`${BASE_ORIGIN}/api/query`, {
@@ -355,6 +298,7 @@ describe("T07 /api/query dual-modal pipeline, image validation, and KV rate limi
       guardedDeps,
     );
     expect(rateLimited.status).toBe(429);
+    expect(quotaCalls).toBe(1);
   });
 
   it("sends Gemini API key in x-goog-api-key header without URL query string and validates model name", async () => {
