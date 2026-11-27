@@ -39,12 +39,16 @@ describe("Worker /api/health", () => {
 
 describe("Worker rail HTTP flow", () => {
   const origin = "https://multi-modal-rag.example.com";
-  const env: Env = { ...TEST_ENV, SESSION_SECRET: "fixture-test-secret-only" };
+  const env: Env = {
+    ...TEST_ENV,
+    SESSION_SECRET: "fixture-test-secret-only-fixture-test-secret",
+    OWNER_EMAIL_ALLOWLIST: "owner@example.com",
+  };
   const now = 1_800_000_000;
   const deps = { nowSeconds: () => now };
 
   async function sessionHeaders(): Promise<Headers> {
-    const token = await signPayload({ sub: "fixture", iat: now, exp: now + 600 }, env.SESSION_SECRET!);
+    const token = await signPayload({ sub: "owner@example.com", iat: now, exp: now + 600 }, env.SESSION_SECRET!);
     return new Headers({ Cookie: `${SESSION_COOKIE}=${token}`, Origin: origin });
   }
 
@@ -60,12 +64,38 @@ describe("Worker rail HTTP flow", () => {
     }), env, deps);
     expect(response.status).toBe(200);
     const result = await response.json() as { status: string; citations: RailCitation[] };
-    expect(result).toMatchObject({ status: "grounded", citations: [{ value: 741824511 }] });
+    expect(result).toMatchObject({ status: "grounded", citations: [{
+      value: 741824511,
+      source_url: "https://data.gov.tw/dataset/132092",
+      publisher: "臺北市政府主計處",
+      unit: "人次",
+    }] });
 
     const chartPath = result.citations[0]?.image_url;
     const chart = await handleRequest(new Request(`${origin}${chartPath}`, { headers }), env, deps);
     expect(chart.headers.get("Content-Type")).toContain("image/svg+xml");
     expect(await chart.text()).toContain("741,824,511");
+  });
+
+  it("rejects files submitted to the rail API and refuses unverifiable evidence without citations", async () => {
+    const headers = await sessionHeaders();
+    const form = new FormData();
+    form.set("question", "這張圖 2024 年人次？");
+    form.set("image", new File([new Uint8Array([0, 1, 2])], "fixture.png", { type: "image/png" }));
+    const fileResponse = await handleRequest(new Request(`${origin}/api/query`, {
+      method: "POST", headers, body: form,
+    }), env, deps);
+    expect(fileResponse.status).toBe(400);
+
+    headers.set("Content-Type", "application/json");
+    const unverifiedResponse = await handleRequest(new Request(`${origin}/api/query`, {
+      method: "POST", headers, body: JSON.stringify({
+        question: "這張圖 2024 年人次？",
+        screenshot_evidence: { codes: ["METRO"], rows: [{ year: 2024, value: 1 }] },
+      }),
+    }), env, deps);
+    expect(unverifiedResponse.status).toBe(200);
+    expect(await unverifiedResponse.json()).toMatchObject({ status: "refused", citations: [] });
   });
 
   it("rejects malformed screenshot evidence and protects the query and chart endpoints", async () => {

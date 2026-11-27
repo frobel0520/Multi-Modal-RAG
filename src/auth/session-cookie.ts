@@ -38,9 +38,11 @@ function fromBase64Url(input: string): Uint8Array {
   return bytes;
 }
 
+export const MIN_SESSION_SECRET_LENGTH = 32;
+
 async function importHmacKey(secret: string): Promise<CryptoKey> {
-  if (!secret || secret.length < 16) {
-    throw new Error("SESSION_SECRET must be at least 16 characters");
+  if (!secret || secret.length < MIN_SESSION_SECRET_LENGTH) {
+    throw new Error(`SESSION_SECRET must be at least ${MIN_SESSION_SECRET_LENGTH} characters`);
   }
   return crypto.subtle.importKey(
     "raw",
@@ -49,6 +51,17 @@ async function importHmacKey(secret: string): Promise<CryptoKey> {
     false,
     ["sign", "verify"],
   );
+}
+
+export function timingSafeEqualStrings(a: string, b: string): boolean {
+  const aBytes = new TextEncoder().encode(a);
+  const bBytes = new TextEncoder().encode(b);
+  if (aBytes.byteLength !== bBytes.byteLength) return false;
+  let diff = 0;
+  for (let i = 0; i < aBytes.byteLength; i++) {
+    diff |= aBytes[i]! ^ bBytes[i]!;
+  }
+  return diff === 0;
 }
 
 export async function signPayload(payload: object, secret: string): Promise<string> {

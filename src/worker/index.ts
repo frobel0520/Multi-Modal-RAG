@@ -47,6 +47,12 @@ export interface WorkerDeps {
   rateLimiter?: RateLimiter;
 }
 
+export const MAX_QUERY_REQUEST_BYTES = 2.5 * 1024 * 1024;
+export const MAX_QUESTION_CHARS = 500;
+export const MAX_FILTER_COMPANY_CHARS = 100;
+
+const workerRateLimiters = new WeakMap<KvStoreLike, KvDailyRateLimiter>();
+
 const API_SECURITY_HEADERS: Record<string, string> = {
   "Content-Type": "application/json; charset=utf-8",
   "Cache-Control": "no-store",
@@ -90,9 +96,14 @@ function resolveRetrievalStore(env: Env, deps: WorkerDeps): RetrievalStore | nul
 function resolveRateLimiter(env: Env, deps: WorkerDeps): RateLimiter | null {
   if (deps.rateLimiter) return deps.rateLimiter;
   if (!env.RATE_LIMIT_KV) return null;
+  const existing = workerRateLimiters.get(env.RATE_LIMIT_KV);
+  if (existing) return existing;
   const globalLimit = Number.parseInt(env.DAILY_GLOBAL_QUERY_LIMIT ?? "250", 10) || 250;
   const perUserLimit = Number.parseInt(env.DAILY_PER_USER_QUERY_LIMIT ?? "100", 10) || 100;
-  return new KvDailyRateLimiter(env.RATE_LIMIT_KV, globalLimit, perUserLimit);
+  // Reuse the in-isolate serialization queue for requests sharing a KV binding.
+  const limiter = new KvDailyRateLimiter(env.RATE_LIMIT_KV, globalLimit, perUserLimit);
+  workerRateLimiters.set(env.RATE_LIMIT_KV, limiter);
+  return limiter;
 }
 
 function isScreenshotEvidence(input: unknown): input is ScreenshotEvidence {
@@ -109,7 +120,7 @@ async function parseQueryRequestBody(request: Request): Promise<Parameters<typeo
   let body: Record<string, unknown>;
   if (request.headers.get("Content-Type")?.includes("multipart/form-data")) {
     const form = await request.formData();
-    if (form.has("image")) {
+    if (form.has("image") || Array.from(form.values()).some((value) => typeof value !== "string")) {
       throw new ImageValidationError("請在網頁附上截圖，瀏覽器會先在本機辨識。");
     }
     body = Object.fromEntries(form);
@@ -123,7 +134,6 @@ async function parseQueryRequestBody(request: Request): Promise<Parameters<typeo
   }
 
   const question = typeof body.question === "string" ? body.question.trim() : "";
-  if (question.length > 500) throw new ImageValidationError("問題最多 500 字。");
   const series = body.series ?? body.company;
   if (series != null && typeof series !== "string") throw new ImageValidationError("運具格式無效。");
   if (body.year != null && !Number.isInteger(body.year)) throw new ImageValidationError("年度格式無效。");
@@ -189,6 +199,7 @@ export async function handleRequest(
     const session = await verifySessionFromRequest(
       request,
       env.SESSION_SECRET ?? "",
+      env.OWNER_EMAIL_ALLOWLIST ?? "",
       nowSeconds,
     );
     if (!session) {
@@ -238,10 +249,27 @@ export async function handleRequest(
 
     if (url.pathname === "/api/query" && request.method === "POST") {
       const startedAt = performance.now();
+      const contentLengthRaw = request.headers.get("Content-Length");
+      if (contentLengthRaw !== null) {
+        const contentLength = Number(contentLengthRaw);
+        if (!/^\d+$/.test(contentLengthRaw) || !Number.isSafeInteger(contentLength)) {
+          return jsonResponse({ error: "invalid_content_length" }, 400);
+        }
+        if (contentLength > MAX_QUERY_REQUEST_BYTES) {
+          return jsonResponse({ error: "payload_too_large" }, 413);
+        }
+      }
+
       try {
         const parsed = await parseQueryRequestBody(request);
         if (!parsed.question && !parsed.screenshot && !parsed.seriesFilter && parsed.yearFilter === null) {
           return jsonResponse({ error: "empty_query" }, 400);
+        }
+        if (parsed.question.length > MAX_QUESTION_CHARS) {
+          return jsonResponse({ error: `問題最多 ${MAX_QUESTION_CHARS} 字。` }, 400);
+        }
+        if (parsed.seriesFilter && parsed.seriesFilter.length > MAX_FILTER_COMPANY_CHARS) {
+          return jsonResponse({ error: "company_filter_too_long" }, 400);
         }
         const rateLimiter = resolveRateLimiter(env, deps);
         if (rateLimiter) {
