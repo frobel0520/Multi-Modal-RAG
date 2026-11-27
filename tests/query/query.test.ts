@@ -110,6 +110,33 @@ describe("T07 /api/query dual-modal pipeline, image validation, and KV rate limi
     );
   });
 
+  it("serializes concurrent bursts and honors monotonic floor even on stale KV reads", async () => {
+    let storedGlobal = "0";
+    let storedUser = "0";
+    // Simulate eventually consistent KV where concurrent gets would otherwise all read "0"
+    const staleLagKv: KvStoreLike = {
+      async get(key) {
+        await new Promise((r) => setTimeout(r, 5));
+        return key.startsWith("rl:global:") ? storedGlobal : storedUser;
+      },
+      async put(key, value) {
+        // Simulate KV lag: storedGlobal stays stale on 2nd write, testing localCounts floor
+        if (key.startsWith("rl:global:") && storedGlobal === "0") storedGlobal = value;
+        if (key.startsWith("rl:user:") && storedUser === "0") storedUser = value;
+      },
+    };
+    const limiter = new KvDailyRateLimiter(staleLagKv, 5, 2);
+    const now = new Date("2026-11-27T10:00:00Z");
+    const results = await Promise.all([
+      limiter.consume("u1@example.com", now),
+      limiter.consume("u1@example.com", now),
+      limiter.consume("u1@example.com", now),
+      limiter.consume("u1@example.com", now),
+    ]);
+    expect(results.filter((r) => r.allowed)).toHaveLength(2);
+    expect(results.filter((r) => !r.allowed)).toHaveLength(2);
+  });
+
   it.each([
     { label: "a fake PNG", size: 12, expectedStatus: 400 },
     { label: "a PNG over the image limit", size: MAX_UPLOAD_IMAGE_BYTES + 1, expectedStatus: 413 },
