@@ -1,19 +1,18 @@
 # Progress
 
 ## 現況
-
-- CR-001 轉向政府公開鐵道統計，首批資料為 2021–2025 年臺鐵（臺北市車站）、北捷（全線）、高鐵（臺北市車站進站）。
-- [Issue #20](https://github.com/frobel0520/Multi-Modal-RAG/issues/20) 與 `feature/20-rail-corpus` 交付來源清單、15 筆年度資料快照及離線圖表生成工具，驗證證據見 [CR-001](docs/05-cr-001-rail-statistics.md)。
-- `main` 已合併 Pages 與 Pages Functions 部署準備，正式部署待驗。既有文字與圖片流程仍需接入鐵道語料。
+- **`main` 分支**：已整合 PR #27／#28 的工作階段、查詢限制與 KV 限流修正。
+- **正式部署**：既有 run `44858853223` 停在必要憑證檢查，切換版尚未取得上線證據（目標網址：`https://multi-modal-rag.pages.dev`）。
+- **Harbor 納管**：`DeploymentHandbook.md` 與 `progress.md` 已同步；待部署後更新為 `pages.dev` 並於 Harbor 主控台 D1 新增記錄
 
 ## 進行中與下一步
+- [ ] **CR-001 第一階段**（Issue #20）：[資料 PR #21](https://github.com/frobel0520/Multi-Modal-RAG/pull/21) 交付 2021–2025 年臺北市臺鐵客運、北捷全線客運與臺北市高鐵進站的 15 筆快照及離線圖表。依序審查資料與下游問答 PR，驗證見 [CR-001](docs/05-cr-001-rail-statistics.md)。
+- [ ] **T10**（Issue #10）：Pages 正式部署、資安檢查與 p50/p95 效能驗收。23 項本機測試與建置產物標頭檢查已通過，見 [Pages 離線預檢](docs/evidence/mvp-release-gate.md)。
+- T08（#6）已完成；T03／T04／T09（#7／#9／#8）已於 2026-11-25 由 Owner 取消。
 
-1. 接入鐵道圖表證據與結構化資料。確定版本契約、精確數值引用及缺資料時的回覆。
-2. 用鐵道新題庫重跑文字、截圖、拒答與引用測試。
-3. 確認正式部署的零月費上限與用量控制，完成登入、資安、正式 API 效能驗收。
+## 擁有者事前準備（部署與真實整合前必要操作）
+- 雲端帳號與金鑰（Supabase、Google OAuth Client、Gemini API Key、GitHub／Worker Secrets）：2026-11-25 Owner 決定短期不做，任務已取消；需要時再重開。
 
-## 待辦與限制
-
-- 真實資料已逐筆核對，模型評分為 `not_scored`。正式問答及發布門檻尚未驗收。
-- 首批資料的臺鐵及高鐵範圍是臺北市。全國資料與其他捷運營運商可在後續鐵道版本擴充。
-- 公路、空運與航運待鐵道版驗收後規劃。
+## 已知限制與待辦
+- 目前 18 項測試皆為離線 fake/fixture 測試；真實 Supabase、Google OAuth、Workers AI 與 Gemini API 整合皆為「待驗收」。
+- MVP 僅支援單一 Owner 白名單登入與預設精選企業 ESG 報告庫，不開放使用者持久化上傳 PDF。

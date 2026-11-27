@@ -1,7 +1,13 @@
 import { describe, expect, it } from "vitest";
 import { handleRequest, type Env } from "../../src/worker/index";
 import type { OAuthCodeExchanger } from "../../src/auth/google-oauth";
-import { OAUTH_TX_COOKIE, SESSION_COOKIE } from "../../src/auth/session-cookie";
+import {
+  OAUTH_TX_COOKIE,
+  SESSION_COOKIE,
+  signPayload,
+  verifyPayload,
+  type SessionPayload,
+} from "../../src/auth/session-cookie";
 
 const BASE_ORIGIN = "https://multi-modal-rag.example.com";
 
@@ -89,6 +95,11 @@ describe("T05 Google OAuth + __Host- session cookie + same-origin guard", () => 
 
     const sessionToken = extractSetCookieValue(callbackRes.headers, SESSION_COOKIE)!;
     expect(sessionToken).toBeTruthy();
+    const decodedSession = await verifyPayload<SessionPayload>(
+      sessionToken,
+      AUTH_ENV.SESSION_SECRET!,
+    );
+    expect(decodedSession?.sub).toBe("owner@example.com");
 
     const meRes = await handleRequest(
       new Request(`${BASE_ORIGIN}/api/auth/me`, {
@@ -98,6 +109,14 @@ describe("T05 Google OAuth + __Host- session cookie + same-origin guard", () => 
     );
     expect(meRes.status).toBe(200);
     expect(await meRes.json()).toEqual({ authenticated: true });
+
+    const revokedRes = await handleRequest(
+      new Request(`${BASE_ORIGIN}/api/auth/me`, {
+        headers: { Cookie: `${SESSION_COOKIE}=${sessionToken}` },
+      }),
+      { ...AUTH_ENV, OWNER_EMAIL_ALLOWLIST: "other-owner@example.com" },
+    );
+    expect(revokedRes.status).toBe(401);
 
     const logoutRes = await handleRequest(
       new Request(`${BASE_ORIGIN}/api/auth/logout`, {
@@ -134,5 +153,11 @@ describe("T05 Google OAuth + __Host- session cookie + same-origin guard", () => 
 
     expect(res.status).toBe(403);
     expect(extractSetCookieValue(res.headers, SESSION_COOKIE)).toBeNull();
+  });
+
+  it("rejects SESSION_SECRET shorter than 32 characters", async () => {
+    await expect(signPayload({ sub: "owner@example.com" }, "x".repeat(31))).rejects.toThrow(
+      /at least 32 characters/,
+    );
   });
 });

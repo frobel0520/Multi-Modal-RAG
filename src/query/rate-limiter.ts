@@ -17,14 +17,35 @@ export interface KvStoreLike {
 const ONE_DAY_PLUS_BUFFER_SECONDS = 60 * 60 * 26;
 
 export class KvDailyRateLimiter implements RateLimiter {
+  private pending: Promise<unknown> = Promise.resolve();
+  private activeDayKey: string | null = null;
+  private readonly localCounts = new Map<string, number>();
+
   constructor(
     private readonly kv: KvStoreLike,
     private readonly globalLimit: number,
     private readonly perUserLimit: number,
   ) {}
 
-  async consume(userKey: string, nowDate = new Date()): Promise<RateLimitResult> {
+  consume(userKey: string, nowDate = new Date()): Promise<RateLimitResult> {
+    const run = this.pending.then(
+      () => this.consumeSerialized(userKey, nowDate),
+      () => this.consumeSerialized(userKey, nowDate),
+    );
+    this.pending = run.then(
+      () => undefined,
+      () => undefined,
+    );
+    return run;
+  }
+
+  private async consumeSerialized(userKey: string, nowDate: Date): Promise<RateLimitResult> {
     const dayKey = nowDate.toISOString().slice(0, 10);
+    if (this.activeDayKey !== dayKey) {
+      this.activeDayKey = dayKey;
+      this.localCounts.clear();
+    }
+
     const globalKey = `rl:global:${dayKey}`;
     const userCounterKey = `rl:user:${userKey}:${dayKey}`;
 
@@ -33,8 +54,10 @@ export class KvDailyRateLimiter implements RateLimiter {
       this.kv.get(userCounterKey),
     ]);
 
-    const globalCount = Number.parseInt(globalRaw ?? "0", 10) || 0;
-    const userCount = Number.parseInt(userRaw ?? "0", 10) || 0;
+    const kvGlobalCount = Number.parseInt(globalRaw ?? "0", 10) || 0;
+    const kvUserCount = Number.parseInt(userRaw ?? "0", 10) || 0;
+    const globalCount = Math.max(kvGlobalCount, this.localCounts.get(globalKey) ?? 0);
+    const userCount = Math.max(kvUserCount, this.localCounts.get(userCounterKey) ?? 0);
 
     if (globalCount >= this.globalLimit) {
       return {
@@ -54,11 +77,16 @@ export class KvDailyRateLimiter implements RateLimiter {
       };
     }
 
+    const nextGlobal = globalCount + 1;
+    const nextUser = userCount + 1;
+    this.localCounts.set(globalKey, nextGlobal);
+    this.localCounts.set(userCounterKey, nextUser);
+
     await Promise.all([
-      this.kv.put(globalKey, String(globalCount + 1), {
+      this.kv.put(globalKey, String(nextGlobal), {
         expirationTtl: ONE_DAY_PLUS_BUFFER_SECONDS,
       }),
-      this.kv.put(userCounterKey, String(userCount + 1), {
+      this.kv.put(userCounterKey, String(nextUser), {
         expirationTtl: ONE_DAY_PLUS_BUFFER_SECONDS,
       }),
     ]);
@@ -66,8 +94,8 @@ export class KvDailyRateLimiter implements RateLimiter {
     return {
       allowed: true,
       reason: null,
-      remainingGlobal: Math.max(this.globalLimit - (globalCount + 1), 0),
-      remainingUser: Math.max(this.perUserLimit - (userCount + 1), 0),
+      remainingGlobal: Math.max(this.globalLimit - nextGlobal, 0),
+      remainingUser: Math.max(this.perUserLimit - nextUser, 0),
     };
   }
 }

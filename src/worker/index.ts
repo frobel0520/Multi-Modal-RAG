@@ -60,6 +60,10 @@ export interface WorkerDeps {
   vlmClient?: VlmClient;
 }
 
+export const MAX_QUERY_REQUEST_BYTES = 2.5 * 1024 * 1024;
+export const MAX_QUESTION_CHARS = 2000;
+export const MAX_FILTER_COMPANY_CHARS = 100;
+
 const API_SECURITY_HEADERS: Record<string, string> = {
   "Content-Type": "application/json; charset=utf-8",
   "Cache-Control": "no-store",
@@ -200,6 +204,7 @@ export async function handleRequest(
     const session = await verifySessionFromRequest(
       request,
       env.SESSION_SECRET ?? "",
+      env.OWNER_EMAIL_ALLOWLIST ?? "",
       nowSeconds,
     );
     if (!session) {
@@ -225,6 +230,17 @@ export async function handleRequest(
     }
 
     if (url.pathname === "/api/query" && request.method === "POST") {
+      const contentLengthRaw = request.headers.get("Content-Length");
+      if (contentLengthRaw !== null) {
+        const contentLength = Number(contentLengthRaw);
+        if (!Number.isFinite(contentLength) || contentLength < 0) {
+          return jsonResponse({ error: "invalid_content_length" }, 400);
+        }
+        if (contentLength > MAX_QUERY_REQUEST_BYTES) {
+          return jsonResponse({ error: "payload_too_large" }, 413);
+        }
+      }
+
       const store = resolveRetrievalStore(env, deps);
       const rateLimiter = resolveRateLimiter(env, deps);
       const embedder = deps.embedder ?? (env.AI ? new WorkersAiBgeM3Embedder(env.AI) : null);
@@ -242,6 +258,12 @@ export async function handleRequest(
         const parsed = await parseQueryRequestBody(request);
         if (parsed.question.trim().length === 0 && !parsed.uploadedImage) {
           return jsonResponse({ error: "empty_query" }, 400);
+        }
+        if (parsed.question.length > MAX_QUESTION_CHARS) {
+          return jsonResponse({ error: "question_too_long" }, 400);
+        }
+        if (parsed.filterCompany && parsed.filterCompany.length > MAX_FILTER_COMPANY_CHARS) {
+          return jsonResponse({ error: "company_filter_too_long" }, 400);
         }
 
         const result = await executeMultiModalQuery(

@@ -51,6 +51,8 @@ export class WorkersAiBgeM3Embedder implements Embedder {
   }
 }
 
+const GEMINI_MODEL_PATTERN = /^[A-Za-z0-9._-]+$/;
+
 export class GeminiVlmClient implements VlmClient {
   private readonly model: string;
 
@@ -59,14 +61,20 @@ export class GeminiVlmClient implements VlmClient {
     model = "gemini-2.5-flash",
     private readonly fetchImpl: typeof fetch = fetch,
   ) {
+    if (!GEMINI_MODEL_PATTERN.test(model)) {
+      throw new Error("invalid_gemini_model");
+    }
     this.model = model;
   }
 
   private async callGemini(parts: unknown[]): Promise<string> {
-    const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${this.model}:generateContent?key=${encodeURIComponent(this.apiKey)}`;
+    const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${this.model}:generateContent`;
     const res = await this.fetchImpl(endpoint, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        "x-goog-api-key": this.apiKey,
+      },
       body: JSON.stringify({
         contents: [{ role: "user", parts }],
         generationConfig: {

@@ -1,11 +1,23 @@
 import { describe, expect, it } from "vitest";
 import { signPayload, SESSION_COOKIE } from "../../src/auth/session-cookie";
-import { VlmRateLimitError, type Embedder, type VlmClient } from "../../src/llm/gemini-client";
+import {
+  GeminiVlmClient,
+  VlmRateLimitError,
+  type Embedder,
+  type VlmClient,
+} from "../../src/llm/gemini-client";
 import { KvDailyRateLimiter, type KvStoreLike } from "../../src/query/rate-limiter";
-import { validateUploadImageBytes } from "../../src/query/image-validation";
+import { MAX_UPLOAD_IMAGE_BYTES, validateUploadImageBytes } from "../../src/query/image-validation";
 import type { RetrievalStore } from "../../src/retrieval/supabase-client";
 import { EMBEDDING_DIMENSION, type MatchedReportPageDTO } from "../../src/schema/contracts";
-import { handleRequest, type Env, type WorkerDeps } from "../../src/worker/index";
+import {
+  handleRequest,
+  MAX_FILTER_COMPANY_CHARS,
+  MAX_QUERY_REQUEST_BYTES,
+  MAX_QUESTION_CHARS,
+  type Env,
+  type WorkerDeps,
+} from "../../src/worker/index";
 
 const BASE_ORIGIN = "https://multi-modal-rag.example.com";
 const SESSION_SECRET = "0123456789abcdef0123456789abcdef";
@@ -13,6 +25,7 @@ const SESSION_SECRET = "0123456789abcdef0123456789abcdef";
 const TEST_ENV: Env = {
   APP_VERSION: "0.1.0",
   DATASET_VERSION: "esg-2026-11-v1",
+  OWNER_EMAIL_ALLOWLIST: "owner@example.com",
   SESSION_SECRET,
 };
 
@@ -82,7 +95,10 @@ const FAKE_EMBEDDER: Embedder = {
 
 async function createOwnerCookieHeader(): Promise<string> {
   const now = Math.floor(Date.now() / 1000);
-  const token = await signPayload({ sub: "owner", iat: now, exp: now + 3600 }, SESSION_SECRET);
+  const token = await signPayload(
+    { sub: "owner@example.com", iat: now, exp: now + 3600 },
+    SESSION_SECRET,
+  );
   return `${SESSION_COOKIE}=${token}`;
 }
 
@@ -92,6 +108,60 @@ describe("T07 /api/query dual-modal pipeline, image validation, and KV rate limi
     expect(() => validateUploadImageBytes(new TextEncoder().encode("not an image payload"))).toThrow(
       /僅支援 PNG、JPEG 或 WebP/,
     );
+  });
+
+  it("serializes concurrent bursts and honors monotonic floor even on stale KV reads", async () => {
+    let storedGlobal = "0";
+    let storedUser = "0";
+    // Simulate eventually consistent KV where concurrent gets would otherwise all read "0"
+    const staleLagKv: KvStoreLike = {
+      async get(key) {
+        await new Promise((r) => setTimeout(r, 5));
+        return key.startsWith("rl:global:") ? storedGlobal : storedUser;
+      },
+      async put(key, value) {
+        // Simulate KV lag: storedGlobal stays stale on 2nd write, testing localCounts floor
+        if (key.startsWith("rl:global:") && storedGlobal === "0") storedGlobal = value;
+        if (key.startsWith("rl:user:") && storedUser === "0") storedUser = value;
+      },
+    };
+    const limiter = new KvDailyRateLimiter(staleLagKv, 5, 2);
+    const now = new Date("2026-11-27T10:00:00Z");
+    const results = await Promise.all([
+      limiter.consume("u1@example.com", now),
+      limiter.consume("u1@example.com", now),
+      limiter.consume("u1@example.com", now),
+      limiter.consume("u1@example.com", now),
+    ]);
+    expect(results.filter((r) => r.allowed)).toHaveLength(2);
+    expect(results.filter((r) => !r.allowed)).toHaveLength(2);
+  });
+
+  it.each([
+    { label: "a fake PNG", size: 12, expectedStatus: 400 },
+    { label: "a PNG over the image limit", size: MAX_UPLOAD_IMAGE_BYTES + 1, expectedStatus: 413 },
+  ])("rejects $label before calling retrieval or models", async ({ size, expectedStatus }) => {
+    const cookie = await createOwnerCookieHeader();
+    const bytes = new Uint8Array(size);
+    if (expectedStatus === 413) bytes.set(VALID_PNG_BYTES);
+    const form = new FormData();
+    form.set("question", "合成驗收題");
+    form.set("image", new File([bytes], "chart.png", { type: "image/png" }));
+    const unexpectedService = async (): Promise<never> => {
+      throw new Error("Invalid uploads must stop before any external service call");
+    };
+    const response = await handleRequest(new Request(`${BASE_ORIGIN}/api/query`, {
+      method: "POST",
+      headers: { Origin: BASE_ORIGIN, Cookie: cookie },
+      body: form,
+    }), TEST_ENV, {
+      retrievalStore: { ...createFakeStore(), matchPages: unexpectedService },
+      rateLimiter: new KvDailyRateLimiter(createMemoryKv(), 10, 5),
+      embedder: { embedQuery: unexpectedService },
+      vlmClient: { extractImageQuery: unexpectedService, generateGroundedAnswer: unexpectedService },
+    });
+    expect(response.status).toBe(expectedStatus);
+    expect(response.headers.get("Cache-Control")).toBe("no-store");
   });
 
   it("handles authenticated image-upload query and returns grounded citations", async () => {
@@ -219,5 +289,102 @@ describe("T07 /api/query dual-modal pipeline, image validation, and KV rate limi
 
     const second = await handleRequest(makeReq(), TEST_ENV, deps);
     expect(second.status).toBe(429);
+  });
+
+  it("enforces Content-Length, question/company length bounds, and runs rate limit before embedder/VLM", async () => {
+    const cookie = await createOwnerCookieHeader();
+    const unexpectedCall = async (): Promise<never> => {
+      throw new Error("Downstream AI services must not be called");
+    };
+    const guardedDeps: WorkerDeps = {
+      retrievalStore: { ...createFakeStore(), matchPages: unexpectedCall },
+      rateLimiter: {
+        async consume() {
+          return { allowed: false, reason: "rate_limited", globalUsed: 1, userUsed: 1 };
+        },
+      },
+      embedder: { embedQuery: unexpectedCall },
+      vlmClient: { extractImageQuery: unexpectedCall, generateGroundedAnswer: unexpectedCall },
+    };
+
+    const tooLarge = await handleRequest(
+      new Request(`${BASE_ORIGIN}/api/query`, {
+        method: "POST",
+        headers: {
+          Origin: BASE_ORIGIN,
+          Cookie: cookie,
+          "Content-Type": "application/json",
+          "Content-Length": String(MAX_QUERY_REQUEST_BYTES + 1),
+        },
+        body: JSON.stringify({ question: "hi" }),
+      }),
+      TEST_ENV,
+      guardedDeps,
+    );
+    expect(tooLarge.status).toBe(413);
+
+    const longQuestion = await handleRequest(
+      new Request(`${BASE_ORIGIN}/api/query`, {
+        method: "POST",
+        headers: { Origin: BASE_ORIGIN, Cookie: cookie, "Content-Type": "application/json" },
+        body: JSON.stringify({ question: "q".repeat(MAX_QUESTION_CHARS + 1) }),
+      }),
+      TEST_ENV,
+      guardedDeps,
+    );
+    expect(longQuestion.status).toBe(400);
+
+    const longCompany = await handleRequest(
+      new Request(`${BASE_ORIGIN}/api/query`, {
+        method: "POST",
+        headers: { Origin: BASE_ORIGIN, Cookie: cookie, "Content-Type": "application/json" },
+        body: JSON.stringify({ question: "合法問題", company: "c".repeat(MAX_FILTER_COMPANY_CHARS + 1) }),
+      }),
+      TEST_ENV,
+      guardedDeps,
+    );
+    expect(longCompany.status).toBe(400);
+
+    const rateLimited = await handleRequest(
+      new Request(`${BASE_ORIGIN}/api/query`, {
+        method: "POST",
+        headers: { Origin: BASE_ORIGIN, Cookie: cookie, "Content-Type": "application/json" },
+        body: JSON.stringify({ question: "合法問題" }),
+      }),
+      TEST_ENV,
+      guardedDeps,
+    );
+    expect(rateLimited.status).toBe(429);
+  });
+
+  it("sends Gemini API key in x-goog-api-key header without URL query string and validates model name", async () => {
+    expect(() => new GeminiVlmClient("test-key", "gemini-2.5-flash/../../bad")).toThrow(
+      /invalid_gemini_model/,
+    );
+
+    let capturedUrl = "";
+    let capturedApiKeyHeader: string | null = null;
+    const fakeFetch: typeof fetch = async (input, init) => {
+      capturedUrl = String(input);
+      capturedApiKeyHeader = new Headers(init?.headers).get("x-goog-api-key");
+      return new Response(
+        JSON.stringify({
+          candidates: [{ content: { parts: [{ text: '{"search_query":"TSMC ESG"}' }] } }],
+        }),
+        { status: 200, headers: { "Content-Type": "application/json" } },
+      );
+    };
+
+    const client = new GeminiVlmClient("secret-gemini-key", "gemini-2.5-flash", fakeFetch);
+    const query = await client.extractImageQuery(
+      { mimeType: "image/png", bytes: VALID_PNG_BYTES },
+      "測試",
+    );
+    expect(query).toBe("TSMC ESG");
+    expect(capturedUrl).toBe(
+      "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent",
+    );
+    expect(capturedUrl).not.toContain("key=");
+    expect(capturedApiKeyHeader).toBe("secret-gemini-key");
   });
 });
