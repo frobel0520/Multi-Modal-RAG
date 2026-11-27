@@ -1,0 +1,60 @@
+{
+  "edition": "2026-11-24",
+  "publisher": "臺北市政府主計處",
+  "license": {
+    "label": "政府資料開放授權條款第1版",
+    "url": "https://data.gov.tw/license"
+  },
+  "years": [
+    2021,
+    2022,
+    2023,
+    2024,
+    2025
+  ],
+  "sources": [
+    {
+      "file": "taipei-rail.raw",
+      "title": "臺北市鐵路客貨運量",
+      "url": "https://data.gov.tw/dataset/133177",
+      "download": "https://tsis.dbas.gov.taipei/statis/webMain.aspx?compmode=0&cycle=4&deflst=2&funid=a05024301&kind=21&nzo=1&outkind=3&outmode=12&sys=220&type=0&ymf=5700",
+      "sha256": "bb99fd7834a1d67b1b58a57ef68a52ac7bbdd2003989a8da6f702d8686759357"
+    },
+    {
+      "file": "metro.raw",
+      "title": "臺北市捷運客運概況按月別",
+      "url": "https://data.gov.tw/dataset/132092",
+      "download": "https://tsis.dbas.gov.taipei/statis/webMain.aspx?compmode=0&cycle=1&deflst=2&funid=a04002401&kind=21&nzo=1&outkind=3&outmode=12&sys=220&type=0&ymf=8701",
+      "sha256": "4f5b40d64f44c57d908110a64a5adbed0bf978600a326f707883a02449289ea3"
+    }
+  ],
+  "series": [
+    {
+      "id": "tra-taipei",
+      "label": "臺鐵",
+      "scope": "臺北市車站",
+      "metric": "客運人次",
+      "source": "taipei-rail.raw",
+      "period": "year",
+      "column": "臺灣鐵路客運人次/總計[人次]"
+    },
+    {
+      "id": "metro-taipei",
+      "label": "北捷",
+      "scope": "臺北捷運全線",
+      "metric": "客運人次",
+      "source": "metro.raw",
+      "period": "month",
+      "column": "客運人次/總計[人次]"
+    },
+    {
+      "id": "hsr-taipei",
+      "label": "高鐵",
+      "scope": "臺北市車站",
+      "metric": "進站人次",
+      "source": "taipei-rail.raw",
+      "period": "year",
+      "column": "高速鐵路進站人次"
+    }
+  ]
+}
