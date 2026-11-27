@@ -260,6 +260,9 @@ export async function handleRequest(
         }
       }
 
+      const rateLimiter = resolveRateLimiter(env, deps);
+      if (!rateLimiter) return jsonResponse({ error: "query_pipeline_not_configured" }, 503);
+
       try {
         const parsed = await parseQueryRequestBody(request);
         if (!parsed.question && !parsed.screenshot && !parsed.seriesFilter && parsed.yearFilter === null) {
@@ -271,11 +274,8 @@ export async function handleRequest(
         if (parsed.seriesFilter && parsed.seriesFilter.length > MAX_FILTER_COMPANY_CHARS) {
           return jsonResponse({ error: "company_filter_too_long" }, 400);
         }
-        const rateLimiter = resolveRateLimiter(env, deps);
-        if (rateLimiter) {
-          const limit = await rateLimiter.consume(session.sub);
-          if (!limit.allowed) return jsonResponse({ error: limit.reason ?? "今日查詢額度已達上限" }, 429);
-        }
+        const limit = await rateLimiter.consume(session.sub);
+        if (!limit.allowed) return jsonResponse({ error: limit.reason ?? "今日查詢額度已達上限" }, 429);
         const result = answerRailQuery(parsed);
         return jsonResponse({
           request_id: crypto.randomUUID(),

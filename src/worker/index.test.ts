@@ -39,10 +39,14 @@ describe("Worker /api/health", () => {
 
 describe("Worker rail HTTP flow", () => {
   const origin = "https://multi-modal-rag.example.com";
-  const env: Env = {
+  const authenticatedEnv: Env = {
     ...TEST_ENV,
     SESSION_SECRET: "fixture-test-secret-only-fixture-test-secret",
     OWNER_EMAIL_ALLOWLIST: "owner@example.com",
+  };
+  const env: Env = {
+    ...authenticatedEnv,
+    RATE_LIMIT_KV: { async get() { return null; }, async put() {} },
   };
   const now = 1_800_000_000;
   const deps = { nowSeconds: () => now };
@@ -51,6 +55,18 @@ describe("Worker rail HTTP flow", () => {
     const token = await signPayload({ sub: "owner@example.com", iat: now, exp: now + 600 }, env.SESSION_SECRET!);
     return new Headers({ Cookie: `${SESSION_COOKIE}=${token}`, Origin: origin });
   }
+
+  it("returns 503 for an authorized rail query without a configured rate limiter", async () => {
+    const headers = await sessionHeaders();
+    headers.set("Content-Type", "application/json");
+    const request = new Request(`${origin}/api/query`, {
+      method: "POST", headers, body: JSON.stringify({ question: "2024 年北捷人次" }),
+    });
+    const response = await handleRequest(request, authenticatedEnv, deps);
+    expect(response.status).toBe(503);
+    expect(await response.json()).toEqual({ error: "query_pipeline_not_configured" });
+    expect(request.bodyUsed).toBe(false);
+  });
 
   it("answers a signed multipart screenshot request and serves the cited SVG", async () => {
     const headers = await sessionHeaders();
