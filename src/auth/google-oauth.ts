@@ -11,6 +11,7 @@ import {
   SESSION_TTL_SECONDS,
   sha256Base64Url,
   signPayload,
+  timingSafeEqualStrings,
   verifyPayload,
   type OAuthTxPayload,
   type SessionPayload,
@@ -85,12 +86,7 @@ export const defaultGoogleOAuthExchanger: OAuthCodeExchanger = {
   },
 };
 
-export function isOwnerAllowed(
-  email: string,
-  emailVerified: boolean,
-  allowlistCsv: string,
-): boolean {
-  if (!emailVerified) return false;
+export function isEmailAllowed(email: string, allowlistCsv: string): boolean {
   const normalizedEmail = email.trim().toLowerCase();
   if (!normalizedEmail) return false;
 
@@ -103,12 +99,22 @@ export function isOwnerAllowed(
   return allowed.includes(normalizedEmail);
 }
 
+export function isOwnerAllowed(
+  email: string,
+  emailVerified: boolean,
+  allowlistCsv: string,
+): boolean {
+  if (!emailVerified) return false;
+  return isEmailAllowed(email, allowlistCsv);
+}
+
 export async function verifySessionFromRequest(
   request: Request,
   sessionSecret: string,
+  ownerEmailAllowlist: string,
   nowSeconds = Math.floor(Date.now() / 1000),
 ): Promise<SessionPayload | null> {
-  if (!sessionSecret) return null;
+  if (!sessionSecret || !ownerEmailAllowlist) return null;
   const token = readCookie(request, SESSION_COOKIE);
   if (!token) return null;
 
@@ -116,6 +122,7 @@ export async function verifySessionFromRequest(
   if (!payload) return null;
   if (typeof payload.sub !== "string" || typeof payload.exp !== "number") return null;
   if (payload.exp <= nowSeconds) return null;
+  if (!isEmailAllowed(payload.sub, ownerEmailAllowlist)) return null;
   return payload;
 }
 
@@ -179,7 +186,7 @@ export async function handleAuthCallback(
   }
 
   const tx = await verifyPayload<OAuthTxPayload>(txCookie, config.sessionSecret);
-  if (!tx || tx.state !== state || tx.exp <= nowSeconds) {
+  if (!tx || typeof tx.state !== "string" || !timingSafeEqualStrings(tx.state, state) || tx.exp <= nowSeconds) {
     return new Response(JSON.stringify({ error: "invalid_oauth_state" }), {
       status: 400,
       headers: {
@@ -221,9 +228,10 @@ export async function handleAuthCallback(
     });
   }
 
+  const normalizedEmail = userInfo.email.trim().toLowerCase();
   const sessionToken = await signPayload(
     {
-      sub: "owner",
+      sub: normalizedEmail,
       iat: nowSeconds,
       exp: nowSeconds + SESSION_TTL_SECONDS,
     } satisfies SessionPayload,
