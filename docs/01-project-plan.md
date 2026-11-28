@@ -56,7 +56,7 @@
 | **Supabase 免費層（免綁卡）** | PostgreSQL `pgvector` ＋ Storage 頁圖 | 500 MB DB、1 GB Storage、每月 5 GB egress | ~15 MB DB、~75 MB Storage | 不開放使用者寫入；僅 Owner 查詢，流量極低 |
 | **Cloudflare Workers + KV + Workers AI（免綁卡）** | 同源 SPA＋API、限流計數、`@cf/baai/bge-m3` 查詢向量 | Worker 100k req/日、KV 1k write/日、Workers AI 10k neurons/日 | 單人使用遠低於上限（每日 < 100 次） | 超額拒絕不自動扣費；KV 強制設全站與單人每日查詢上限 |
 | **Gemini API 免費層（免綁卡）** | 線上截圖理解與多模態看圖作答 | 依 Google AI Studio 免費層 RPM/RPD 限制 | 每日 < 100 次查詢 | 不綁卡超額回 429；自動降級為純檢索（回傳原頁圖＋離線摘要） |
-| **GitHub Actions** | CI（lint/typecheck/test/audit）與 `main` 部署 | Public repo 標準執行器免費 | 每次 PR／push 約 2–3 分鐘 | 僅必要 job 執行 |
+| **GitHub Actions** | CI（lint/typecheck/test/audit）；恢復上線後由 Owner 從 `main` 手動部署 | Public repo 標準執行器免費 | 每次 PR／push 的 CI 約 2–3 分鐘 | 僅必要 job 執行 |
 
 ---
 

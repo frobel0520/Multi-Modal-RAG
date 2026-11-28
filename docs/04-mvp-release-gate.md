@@ -27,7 +27,7 @@
 - [ ] 非白名單 Google 帳號登入回傳 `403`
 - [ ] 上傳非圖片／偽造副檔名或超過 2 MB 的檔案被伺服器端拒絕（`400`／`413`），且合法上傳圖不落地儲存
 - [ ] 正式回應標頭含 CSP、`X-Content-Type-Options: nosniff`、`frame-ancestors 'none'`；HTML `no-cache`、API `no-store`。Pages 的 `_headers` 只套用於靜態回應，Functions 回應須由程式設定。[Cloudflare Pages 標頭](https://developers.cloudflare.com/pages/configuration/headers/)
-- [ ] 部署 workflow 僅由 `main` push 或 owner `workflow_dispatch` 觸發，使用 `production` environment，部署 job 限定 main 與 repo owner。既有執行止於必要憑證檢查，實際部署輸出仍待驗。
+- [ ] 恢復部署時，由 Owner 在 GitHub **Actions → Deploy to Cloudflare Pages → Run workflow** 選擇 `main` 手動啟動（`workflow_dispatch`）。部署 job 限定 `main` 與 repo owner，使用 `production` environment。推送或合併到 `main` 只觸發 CI。既有部署執行止於必要憑證檢查，實際部署輸出仍待驗。
 
 ---
 
@@ -60,5 +60,5 @@
 - [ ] 記錄實際資源佔用：Colab CU 消耗、Supabase DB MB、Storage MB、Worker 每日限流設定
 - [ ] **Rollback 方式**：
   - Pages 版本異常：由 Owner 在 Cloudflare Pages 專案的 Deployments 選擇仍保留、成功的前一筆 production deployment，執行 Rollback to this deployment。Preview 不能作為回滾目標；若從未成功發布，沒有可回滾版本。[Cloudflare Pages 回滾](https://developers.cloudflare.com/pages/configuration/rollbacks/)
-  - 程式碼問題：由 Owner 核准 revert PR，再經 main 的既有部署流程發布。
+  - 程式碼問題：由 Owner 核准 revert PR，合併到 `main` 後由 Owner 手動啟動部署。
   - 索引資料問題：保留前版 `dataset_version` 標記，異常時切回前版查詢過濾條件
