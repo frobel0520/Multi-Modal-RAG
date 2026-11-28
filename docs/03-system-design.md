@@ -141,6 +141,8 @@ interface QueryResponse {
 
 ## 5. Task DAG 與任務契約（MVP）
 
+T10 正式部署與線上驗收已暫緩。以下保留任務契約，供日後恢復部署時參考。
+
 ```mermaid
 flowchart TD
   T01["T01 專案骨架與 CI"] --> T02["T02 Supabase Schema Migration"]
@@ -153,7 +155,7 @@ flowchart TD
   T07 --> T08["T08 前端 SPA（文字＋截圖上傳＋證據檢視）"]
   T04 --> T09["T09 離線 Eval Set 評測（30–40 題）"]
   T07 --> T09
-  T08 --> T10["T10 正式部署、資安檢查與效能驗收"]
+  T08 --> T10["T10 暫緩：正式部署、資安檢查與效能驗收"]
   T09 --> T10
 ```
 
@@ -168,4 +170,4 @@ flowchart TD
 | **T07** | 實作 `/api/query`（文字＋截圖 magic bytes 驗證＋Gemini VLM＋KV 限流降級） | T05, T06, §4 API 契約 | `src/query/*`, `src/llm/*` | T05, T06 | 前端 UI | 截圖驗檔、429 降級 `degraded_retrieval_only`、KV 限流測試 | Fake Gemini/Workers AI/KV | `tests/query/` |
 | **T08** | 實作同源前端 SPA（登入頁、文字／截圖貼上上傳、引用原頁放大檢視） | §2 流程, T07 API | `web/*`, `public/_headers` | T07 | 正式上線 | 元件測試＋本機瀏覽器驗證（桌機與手機視窗）＋無 CSP 錯誤 | Mock API fixture | `tests/web/` |
 | **T09** | 建立 30–40 題離線 Eval Set 並執行準確率評測 | T04 真實索引, T07 管線 | `eval/dataset.json`, 評測腳本與報告 | T04, T07 | 正式效能壓測 | Recall@5 ≥ 85%、引用合法率 100%、正確拒答率 ≥ 90% | 真實 ESG 評測題庫 | `docs/evidence/eval-report.md` |
-| **T10** | 正式部署至 Cloudflare Worker、資安基準逐項驗證與效能驗收 | T08, T09, 擁有者 Secrets | `.github/workflows/deploy.yml`, Release Gate 報告 | T08, T09 | 公開開放給大眾 | 正式實機登入／查詢／截圖／登出、p50/p95 達標、安全標頭驗證 | 正式環境實測 | `docs/evidence/mvp-release-gate.md` |
+| **T10（暫緩）** | 正式部署至 Cloudflare Pages、資安基準逐項驗證與效能驗收 | T08, T09, 擁有者 Secrets | `.github/workflows/deploy.yml`, Release Gate 報告 | T08, T09 | 公開開放給大眾 | 正式實機登入／查詢／截圖／登出、p50/p95 達標、安全標頭驗證 | 正式環境實測 | `docs/evidence/mvp-release-gate.md` |

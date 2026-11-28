@@ -2,7 +2,8 @@
 
 - **文件狀態**：提案（待擁有者核准）
 - **建立日期**：2026-11-20
-- **專案級別**：產品級（有正式部署與 Google OAuth Owner 白名單登入）
+- **專案級別**：產品級
+- **部署狀態（2026-11-28）**：暫時不上線。以下保留原規劃；正式部署及驗收列為暫緩，待 Owner 決定恢復。
 - **規範來源**：`frobel0520/harbor` 的 `standards/DevelopmentStandards.md`、`standards/DeploymentHandbook.md`、`standards/colab-bridge.md`
 
 ---
@@ -11,7 +12,7 @@
 
 打造一個**零月費、可部署上線**的 Multi-Modal RAG 系統，解決純文字 RAG 在面對**高密度圖表、堆疊長條圖、跨頁財務／ESG 統計附表**時資訊流失與數值幻覺的問題。
 
-MVP 階段採 **Owner 專屬使用（Google OAuth 白名單）**，優先驗證多模態檢索準確率、圖表截圖查詢體驗、Grounding 守門與線上延遲；待穩定後可透過架構切換開放公開試用。
+目前以本機和離線驗證多模態檢索、圖表截圖查詢與 Grounding 守門。若日後恢復部署，MVP 採 **Owner 專屬使用（Google OAuth 白名單）**，屆時再驗證線上延遲。
 
 ---
 
@@ -79,4 +80,4 @@ MVP 階段採 **Owner 專屬使用（Google OAuth 白名單）**，優先驗證�
 2. **M2 — 離線索引與資料集就緒（T03–T04）**：完成 3 家企業 ESG 報告來源清單、Colab 建索引腳本與 Supabase 寫入驗證。
 3. **M3 — 認證、檢索與多模態 API（T05–T07）**：Google OAuth + `__Host-` session cookie、Hybrid 檢索、Gemini 看圖作答（含上傳截圖）與 Grounding 守門。
 4. **M4 — 前端 UI 與離線評測（T08–T09）**：同源前端（文字＋拖拉／貼上截圖提問＋原頁證據檢視器）、Eval Set 評測。
-5. **M5 — 正式部署與 Release Gate（T10）**：GitHub Actions 部署至 Cloudflare Worker、資安檢查、正式效能實測與收斂驗收證據。
+5. **M5 — 正式部署與 Release Gate（T10，暫緩）**：恢復部署後，再執行 Cloudflare Pages 部署、資安檢查與正式效能實測。
