@@ -2,7 +2,8 @@
 
 - **文件狀態**：提案（待擁有者核准）
 - **建立日期**：2026-11-20
-- **目前驗收結果**：2026-11-23 已完成可離線覆核的預檢，正式 Gate 維持 `pending`。見 [逐項證據](evidence/mvp-release-gate.md)。
+- **部署狀態（2026-11-28）**：暫時不上線。正式 Release Gate 暫緩，以下條件保留供日後恢復部署時使用。
+- **目前驗收結果**：2026-11-23 已完成可離線覆核的預檢。見 [逐項證據](evidence/mvp-release-gate.md)。
 
 ---
 
@@ -19,7 +20,7 @@
 
 ## 2. 資安基準檢查（依 `DeploymentHandbook.md` 第 2 章）
 
-- [ ] 正式獨立 origin：`https://multi-modal-rag.pages.dev`（Pages 提供 `dist` 靜態 SPA，`functions/api/[[path]].ts` 在同一 origin 轉接 `/api/*`，不開 CORS）。正式部署、同源行為與回應標頭待讀回。
+- [ ] 恢復部署後確認正式獨立 origin（原規劃網址為 `https://multi-modal-rag.pages.dev`）。Pages 提供 `dist` 靜態 SPA，`functions/api/[[path]].ts` 在同一 origin 轉接 `/api/*`，不開 CORS。須讀回正式環境的同源行為與回應標頭。
 - [ ] Session cookie 名稱以 `__Host-` 開頭，屬性含 `HttpOnly; Secure; SameSite=Strict; Path=/`
 - [ ] `localStorage`／`sessionStorage` 不存任何 token 或 session；API 不回傳 token
 - [ ] 跨來源 `POST` 回傳 `403`；未登入存取 `/api/query`、`/api/reports` 回傳 `401`
